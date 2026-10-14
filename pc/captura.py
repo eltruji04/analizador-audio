@@ -8,6 +8,7 @@ de audio, medir su nivel (RMS) y capturar de forma continua por bloques.
 import sounddevice
 import numpy
 import time
+import configuracion
 
 def buscar_dispositivo(texto):
     """
@@ -33,9 +34,8 @@ def grabar(numero_dispositivo, segundos):
     """
     info = sounddevice.query_devices(numero_dispositivo)
     cantidad_canales = info['max_input_channels']
-    muestreo = 48000
-    cantidad_muestras = int(segundos * muestreo)
-    audio = sounddevice.rec(cantidad_muestras, samplerate=muestreo, channels=cantidad_canales, device=numero_dispositivo)
+    cantidad_muestras = int(segundos * configuracion.FRECUENCIA_MUESTREO)
+    audio = sounddevice.rec(cantidad_muestras, samplerate=configuracion.FRECUENCIA_MUESTREO, channels=cantidad_canales, device=numero_dispositivo)
     sounddevice.wait() 
     return audio
 
@@ -64,12 +64,13 @@ def al_recibir_bloque(bloque, cantidad_muestras, tiempo, estado):
     cantidad = int(nivel * 100)
     print("#" * cantidad)    
 
-def capturar_continuo(numero_dispositivo):
+def capturar_continuo(numero_dispositivo, procesar_bloque):
     """
     Captura audio de forma continua desde el dispositivo indicado.
  
-    El audio llega en bloques de 1024 muestras y cada bloque se
-    procesa en al_recibir_bloque(). 
+    El audio llega en bloques y cada bloque se pasa a `procesar_bloque`,
+    una función que recibe (bloque, cantidad_muestras, tiempo, estado)
+    y que llama sounddevice cada vez que hay un bloque listo.
     """
     info = sounddevice.query_devices(numero_dispositivo)
     canales = info['max_input_channels']
@@ -77,9 +78,9 @@ def capturar_continuo(numero_dispositivo):
     with sounddevice.InputStream(
         device=numero_dispositivo, 
         channels=canales, 
-        samplerate=48000, 
-        blocksize=1024, 
-        callback=al_recibir_bloque):
+        samplerate=configuracion.FRECUENCIA_MUESTREO, 
+        blocksize=configuracion.TAMANO_BLOQUE, 
+        callback=procesar_bloque):
         while True:
             time.sleep(0.1)
 
@@ -87,8 +88,8 @@ def capturar_continuo(numero_dispositivo):
 # no cuando otro módulo lo importa.
 if __name__ == "__main__":
     try:
-        numero = buscar_dispositivo("BlackHole")
+        numero = buscar_dispositivo(configuracion.DISPOSITIVO_SISTEMA)
         print("Capturando… (Ctrl+C para salir)")
-        capturar_continuo(numero)
+        capturar_continuo(numero, al_recibir_bloque)
     except KeyboardInterrupt:
         print("Captura detenida")

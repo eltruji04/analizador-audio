@@ -1,5 +1,5 @@
 """
-bandas.py — Cálculo de la energía de las 8 bandas de frecuencia.
+bandas.py — Cálculo de la energía de las 16 bandas de frecuencia.
 
 Recibe un tramo de audio, calcula su espectro con la FFT y suma la
 energía de las frecuencias que caen dentro de cada banda definida en

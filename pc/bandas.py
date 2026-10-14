@@ -56,7 +56,7 @@ def calcular_bandas(muestras, ventana, mascaras):
 
 # Prueba con tonos: solo se ejecuta con `python pc/bandas.py`.
 if __name__ == "__main__":
-    n = 1024
+    n = configuracion.TAMANO_VENTANA
     fs = configuracion.FRECUENCIA_MUESTREO
     ventana, mascaras = preparar_analisis(n, fs)
 

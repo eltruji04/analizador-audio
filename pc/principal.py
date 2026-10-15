@@ -28,6 +28,8 @@ n = configuracion.TAMANO_VENTANA
 ventana, mascaras = bandas.preparar_analisis(n, fs)
 # Últimas n muestras de audio (mono). Empieza en silencio (ceros).
 memoria = numpy.zeros(n)
+piso, techo = bandas.niveles_iniciales()
+contador = 0
 
 
 def al_recibir_bloque(bloque, cantidad_muestras, tiempo, estado):
@@ -37,6 +39,7 @@ def al_recibir_bloque(bloque, cantidad_muestras, tiempo, estado):
     Agrega el bloque a la memoria, analiza las últimas n muestras y
     muestra la energía de cada banda en dB.
     """
+    global contador
     # `estado` está vacío si no hubo problemas; si se perdió audio, lo muestra.
     if estado:
         print(estado)
@@ -57,13 +60,18 @@ def al_recibir_bloque(bloque, cantidad_muestras, tiempo, estado):
     # para no calcular log10(0) en silencio; por eso el silencio da -120 dB.
     # Los valores todavía no están calibrados: solo importa cómo varían.
     db = 10 * numpy.log10(energias + 0.000000000001)
-    print(f"dB: {db.round(1)}")
+    bandas.actualizar_niveles(piso, techo, db)
+    alturas = bandas.a_alturas(db, piso, techo)
+    contador += 1
+    if contador % 5 == 0:
+         print(f"Alturas: {alturas.round().astype(int)}")
 
 
 # Solo se ejecuta con `python pc/principal.py`, no al importar el módulo.
 if __name__ == "__main__":
     try:
-        numero = captura.buscar_dispositivo(configuracion.DISPOSITIVO_SISTEMA)
-        captura.capturar_continuo(numero, al_recibir_bloque)
+      numero = captura.buscar_dispositivo(configuracion.DISPOSITIVO_SISTEMA)
+      print("Analizando… (Ctrl+C para salir)")
+      captura.capturar_continuo(numero, al_recibir_bloque)
     except KeyboardInterrupt:
         print("Análisis detenido")

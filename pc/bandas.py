@@ -53,6 +53,33 @@ def calcular_bandas(muestras, ventana, mascaras):
         energias.append(numpy.sum(potencia[mascara]))
     return numpy.array(energias)
 
+def niveles_iniciales():
+    techo = numpy.full(configuracion.CANTIDAD_BARRAS, configuracion.TECHO_INICIAL_DB)
+    piso = techo - configuracion.RANGO_MINIMO_DB
+    return piso, techo
+
+def actualizar_niveles(piso, techo, db):
+    # 1. Techo: sube enseguida, baja despacio
+    nuevo_techo = numpy.where(db > techo, db, techo - configuracion.VELOCIDAD_DB)
+    nuevo_techo = numpy.maximum(nuevo_techo, configuracion.TECHO_MINIMO_DB)
+    techo_general = numpy.max(nuevo_techo)
+    nuevo_techo = numpy.maximum(nuevo_techo, techo_general - configuracion.DISTANCIA_MAXIMA_DB)
+
+    # 2. Piso: baja enseguida, sube despacio
+    nuevo_piso = numpy.where(db < piso, db, piso + configuracion.VELOCIDAD_DB)
+
+    # 3. Distancia entre los dos, entre RANGO_MINIMO y RANGO_MAXIMO
+    nuevo_piso = numpy.clip(nuevo_piso, nuevo_techo - configuracion.RANGO_MAXIMO_DB, nuevo_techo - configuracion.RANGO_MINIMO_DB)
+
+    techo[:] = nuevo_techo
+    piso[:] = nuevo_piso
+
+def a_alturas(db, piso, techo):
+    # FUNCIÓN a_alturas(db, piso, techo):
+    proporcion = (db - piso) / (techo - piso)
+    alturas = proporcion * configuracion.ALTURA_MAXIMA
+    alturas = numpy.clip(alturas, 0, configuracion.ALTURA_MAXIMA)
+    return alturas
 
 # Prueba con tonos: solo se ejecuta con `python pc/bandas.py`.
 if __name__ == "__main__":
@@ -61,11 +88,14 @@ if __name__ == "__main__":
     ventana, mascaras = preparar_analisis(n, fs)
 
     t = numpy.arange(n) / fs  # tiempos de cada muestra, en segundos
-    for f in [40, 60, 90, 130, 190, 280, 410, 610, 900, 1300, 1950, 2850, 4200, 6250, 9200, 13500, 20000]:
+    frecuencias_prueba = []
+    for minimo, maximo in configuracion.BANDAS:
+        frecuencias_prueba.append(numpy.sqrt(minimo * maximo))
+    for f in frecuencias_prueba:
         tono = numpy.sin(2 * numpy.pi * f * t)
         energias = calcular_bandas(tono, ventana, mascaras)
         ganadora = numpy.argmax(energias)  # empieza en 0
-        print(f"{f} Hz → banda {ganadora + 1}")
+        print(f"{f:.0f} Hz → banda {ganadora + 1}")
     for n in [1024, 4096]:
         ventana, mascaras = preparar_analisis(n, fs)
         print(f"n = {n}, → separación: {fs / n} Hz")

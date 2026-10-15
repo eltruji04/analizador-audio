@@ -1,9 +1,13 @@
 """
-bandas.py — Cálculo de la energía de las 16 bandas de frecuencia.
+bandas.py — Análisis de las 16 bandas de frecuencia y cálculo de las barras.
 
-Recibe un tramo de audio, calcula su espectro con la FFT y suma la
-energía de las frecuencias que caen dentro de cada banda definida en
-configuracion.BANDAS.
+1. Recibe un tramo de audio, calcula su espectro con la FFT y suma la
+   energía de las frecuencias que caen dentro de cada banda definida en
+   configuracion.BANDAS.
+2. Ajusta solo el piso y el techo de cada banda (calibración automática),
+   para que las barras se vean bien con música fuerte o suave.
+3. Convierte los dB en alturas de barra entre 0 y ALTURA_MAXIMA.
+4. Suaviza las barras: suben enseguida y bajan despacio.
 """
 
 import numpy
@@ -53,33 +57,85 @@ def calcular_bandas(muestras, ventana, mascaras):
         energias.append(numpy.sum(potencia[mascara]))
     return numpy.array(energias)
 
+
 def niveles_iniciales():
-    techo = numpy.full(configuracion.CANTIDAD_BARRAS, configuracion.TECHO_INICIAL_DB)
+    """
+    Crea los arreglos de piso y techo (en dB) con los que arranca la
+    calibración automática: el techo en TECHO_INICIAL_DB y el piso
+    RANGO_MINIMO_DB por debajo. Solo importan los primeros segundos:
+    después se ajustan solos con la música.
+    """
+    techo = numpy.full(configuracion.CANTIDAD_BARRAS,
+                       configuracion.TECHO_INICIAL_DB, dtype=float)
     piso = techo - configuracion.RANGO_MINIMO_DB
     return piso, techo
 
-def actualizar_niveles(piso, techo, db):
-    # 1. Techo: sube enseguida, baja despacio
-    nuevo_techo = numpy.where(db > techo, db, techo - configuracion.VELOCIDAD_DB)
-    nuevo_techo = numpy.maximum(nuevo_techo, configuracion.TECHO_MINIMO_DB)
-    techo_general = numpy.max(nuevo_techo)
-    nuevo_techo = numpy.maximum(nuevo_techo, techo_general - configuracion.DISTANCIA_MAXIMA_DB)
 
-    # 2. Piso: baja enseguida, sube despacio
+def actualizar_niveles(piso, techo, db):
+    """
+    Calibración automática: ajusta el piso y el techo de cada banda
+    según lo que está sonando. Modifica `piso` y `techo` por dentro
+    (con [:]), así los cambios se conservan de un bloque al siguiente.
+
+    Reglas, en este orden:
+    1. Techo: si la música lo supera, sube enseguida; si no, baja
+       VELOCIDAD_DB por bloque. Además tiene dos límites:
+       - nunca baja de TECHO_MINIMO_DB, para que en un silencio
+         (-120 dB) el techo no lo alcance y llene las barras;
+       - nunca queda a más de DISTANCIA_MAXIMA_DB por debajo del techo
+         más alto, para que una banda casi vacía (los agudos de un piano)
+         no se "estire" y muestre ruido como si fuera música.
+    2. Piso: si la música baja de él, baja enseguida; si no, sube
+       VELOCIDAD_DB por bloque.
+    3. La distancia entre piso y techo queda entre RANGO_MINIMO_DB (para
+       no amplificar diferencias chiquitas) y RANGO_MAXIMO_DB (para que
+       después de una pausa el piso no quede muy abajo y se recupere rápido).
+    """
+    # 1. Techo: sube enseguida, baja despacio.
+    nuevo_techo = numpy.where(db > techo, db, techo - configuracion.VELOCIDAD_DB)
+    # Límite absoluto: protege del silencio.
+    nuevo_techo = numpy.maximum(nuevo_techo, configuracion.TECHO_MINIMO_DB)
+    # Límite relativo a la banda más fuerte: protege de las bandas casi vacías.
+    techo_general = numpy.max(nuevo_techo)
+    nuevo_techo = numpy.maximum(nuevo_techo,
+                                techo_general - configuracion.DISTANCIA_MAXIMA_DB)
+
+    # 2. Piso: baja enseguida, sube despacio.
     nuevo_piso = numpy.where(db < piso, db, piso + configuracion.VELOCIDAD_DB)
 
-    # 3. Distancia entre los dos, entre RANGO_MINIMO y RANGO_MAXIMO
-    nuevo_piso = numpy.clip(nuevo_piso, nuevo_techo - configuracion.RANGO_MAXIMO_DB, nuevo_techo - configuracion.RANGO_MINIMO_DB)
+    # 3. Distancia entre piso y techo, entre RANGO_MINIMO y RANGO_MAXIMO.
+    nuevo_piso = numpy.clip(nuevo_piso,
+                            nuevo_techo - configuracion.RANGO_MAXIMO_DB,
+                            nuevo_techo - configuracion.RANGO_MINIMO_DB)
 
     techo[:] = nuevo_techo
     piso[:] = nuevo_piso
 
+
 def a_alturas(db, piso, techo):
-    # FUNCIÓN a_alturas(db, piso, techo):
+    """
+    Convierte los dB de cada banda en una altura de barra: 0 cuando la
+    banda está en su piso y ALTURA_MAXIMA cuando está en su techo,
+    proporcional en el medio y limitada a ese rango.
+
+    No hay riesgo de dividir por cero: actualizar_niveles garantiza que
+    techo − piso es al menos RANGO_MINIMO_DB.
+    """
     proporcion = (db - piso) / (techo - piso)
     alturas = proporcion * configuracion.ALTURA_MAXIMA
     alturas = numpy.clip(alturas, 0, configuracion.ALTURA_MAXIMA)
     return alturas
+
+
+def suavizar(mostradas, alturas):
+    """
+    Suaviza las barras para que no parpadeen.
+    """
+    nuevas = numpy.where(alturas > mostradas, alturas,
+                         mostradas - configuracion.CAIDA_BARRAS)
+    nuevas = numpy.clip(nuevas, 0, None)
+    mostradas[:] = nuevas
+
 
 # Prueba con tonos: solo se ejecuta con `python pc/bandas.py`.
 if __name__ == "__main__":
@@ -87,6 +143,8 @@ if __name__ == "__main__":
     fs = configuracion.FRECUENCIA_MUESTREO
     ventana, mascaras = preparar_analisis(n, fs)
 
+    # Un tono en el centro "logarítmico" de cada banda: raíz de (mínimo × máximo).
+    # Tiene que ganar la banda correspondiente: 16 de 16.
     t = numpy.arange(n) / fs  # tiempos de cada muestra, en segundos
     frecuencias_prueba = []
     for minimo, maximo in configuracion.BANDAS:
@@ -96,9 +154,11 @@ if __name__ == "__main__":
         energias = calcular_bandas(tono, ventana, mascaras)
         ganadora = numpy.argmax(energias)  # empieza en 0
         print(f"{f:.0f} Hz → banda {ganadora + 1}")
-    for n in [1024, 4096]:
-        ventana, mascaras = preparar_analisis(n, fs)
-        print(f"n = {n}, → separación: {fs / n} Hz")
+
+    # Cuántos valores del espectro caen en cada banda según el largo del
+    # tramo. Con 1024, la banda 2 queda vacía: por eso se analiza con 4096.
+    for largo in [1024, 4096]:
+        ventana, mascaras = preparar_analisis(largo, fs)
+        print(f"n = {largo} → separación: {fs / largo} Hz")
         for numero, mascara in enumerate(mascaras):
             print(f"  banda {numero + 1}: {numpy.sum(mascara)} valores")
-

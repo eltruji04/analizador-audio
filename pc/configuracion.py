@@ -31,3 +31,6 @@ TECHO_MINIMO_DB = -70.0
 VELOCIDAD_DB    = 0.3
 TECHO_INICIAL_DB = 25.0
 DISTANCIA_MAXIMA_DB = 35  
+
+# Parámetros de visualización
+CAIDA_BARRAS = 2.0     # Ajustar cuando este listo el visualizador para que las barras bajen más rápido o más lento.

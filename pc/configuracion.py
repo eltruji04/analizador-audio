@@ -23,6 +23,7 @@ ALTURA_MAXIMA = 32
 MODO_MIC = 0
 MODO_LINE = 1
 SIN_NOTA = 12
+INTERVALO_ENVIO = 1 / 30
 
 # Parámetros de calibración de la señal de audio
 RANGO_MINIMO_DB = 12.0

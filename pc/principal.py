@@ -20,9 +20,12 @@ Por qué una ventana deslizante:
 """
 
 import numpy
+import serial
+import time
 import configuracion
 import captura
 import bandas
+import serie
 
 
 # --- Preparación: se hace una sola vez, al empezar ---------------------
@@ -41,6 +44,10 @@ mostradas = numpy.zeros(configuracion.CANTIDAD_BARRAS)
 # Cantidad de bloques procesados (para imprimir solo uno de cada 5).
 contador = 0
 
+ultimo_envio = 0
+envios = 0
+modo = configuracion.MODO_LINE 
+conexion = None
 
 def al_recibir_bloque(bloque, cantidad_muestras, tiempo, estado):
     """
@@ -50,7 +57,7 @@ def al_recibir_bloque(bloque, cantidad_muestras, tiempo, estado):
     actualiza la calibración y calcula la altura suavizada de cada barra.
     Muestra las alturas uno de cada 5 bloques.
     """
-    global contador
+    global contador, ultimo_envio, envios
 
     # `estado` está vacío si no hubo problemas; si se perdió audio, lo muestra.
     if estado:
@@ -81,6 +88,13 @@ def al_recibir_bloque(bloque, cantidad_muestras, tiempo, estado):
     # Suavizado: las barras suben enseguida y bajan de a CAIDA_BARRAS.
     bandas.suavizar(mostradas, alturas)
 
+    ahora = time.monotonic()
+    if conexion is not None and (ahora - ultimo_envio) >= configuracion.INTERVALO_ENVIO:
+        paquete = serie.armar_paquete(mostradas, modo, configuracion.SIN_NOTA)
+        serie.enviar(conexion, paquete)
+        ultimo_envio = ahora
+        envios += 1
+
     contador += 1
     if contador % 5 == 0:
         print(f"Alturas: {mostradas.round().astype(int)}")
@@ -89,8 +103,21 @@ def al_recibir_bloque(bloque, cantidad_muestras, tiempo, estado):
 # Solo se ejecuta con `python pc/principal.py`, no al importar el módulo.
 if __name__ == "__main__":
     try:
+        conexion = serie.conectar(configuracion.PUERTO_SERIE)
+        print("Arduino conectado")
+    except serial.SerialException:
+        print("No se encontró el Arduino: sigo sin enviar")
+    
+        inicio = time.monotonic()
+    
+    try:
         numero = captura.buscar_dispositivo(configuracion.DISPOSITIVO_SISTEMA)
         print("Analizando… (Ctrl+C para salir)")
+        inicio = time.monotonic()
         captura.capturar_continuo(numero, al_recibir_bloque)
     except KeyboardInterrupt:
         print("Análisis detenido")
+        segundos = time.monotonic() - inicio
+        print(f"Envios: {envios}, Segundos: {segundos}, Paquetes por segundo: {envios / segundos}")
+        if conexion is not None:
+            conexion.close()

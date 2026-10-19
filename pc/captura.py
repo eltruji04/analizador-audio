@@ -80,6 +80,7 @@ def capturar_continuo(numero_dispositivo, procesar_bloque):
         channels=canales, 
         samplerate=configuracion.FRECUENCIA_MUESTREO, 
         blocksize=configuracion.TAMANO_BLOQUE, 
+        latency='low',
         callback=procesar_bloque):
         while True:
             time.sleep(0.1)

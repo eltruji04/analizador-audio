@@ -6,7 +6,9 @@ Captura el audio de forma continua y, cada vez que llega un bloque nuevo:
 2. calcula la energía de las 16 bandas y la pasa a decibeles (dB);
 3. ajusta solo el piso y el techo de cada banda (calibración automática);
 4. convierte los dB en alturas de barra entre 0 y ALTURA_MAXIMA (32);
-5. suaviza las barras: suben enseguida y bajan despacio.
+5. suaviza las barras: suben enseguida y bajan despacio;
+6. si hay un Arduino conectado, le manda las alturas por el puerto serie
+   (paquete de 19 bytes, unos 21 por segundo).
 
 Por qué una ventana deslizante:
 - Los bloques llegan de a TAMANO_BLOQUE muestras (1024, unos 21 ms):
@@ -44,10 +46,19 @@ mostradas = numpy.zeros(configuracion.CANTIDAD_BARRAS)
 # Cantidad de bloques procesados (para imprimir solo uno de cada 5).
 contador = 0
 
+# --- Envío al Arduino ---
+# Momento del último paquete enviado (time.monotonic(), en segundos).
+# Empieza en 0 para que el primer bloque ya se pueda enviar.
 ultimo_envio = 0
+# Cantidad de paquetes enviados.
 envios = 0
-modo = configuracion.MODO_LINE 
+# Fuente de audio que se informa en el paquete. Por ahora siempre
+# LINE (audio de la pc); falta la selección MIC/LINE.
+modo = configuracion.MODO_LINE
+# Puerto serie abierto con el Arduino. None = no hay Arduino conectado:
+# el análisis sigue funcionando, pero no se envía nada.
 conexion = None
+
 
 def al_recibir_bloque(bloque, cantidad_muestras, tiempo, estado):
     """
@@ -55,7 +66,8 @@ def al_recibir_bloque(bloque, cantidad_muestras, tiempo, estado):
 
     Agrega el bloque a la memoria, analiza las últimas n muestras,
     actualiza la calibración y calcula la altura suavizada de cada barra.
-    Muestra las alturas uno de cada 5 bloques.
+    Si hay Arduino conectado, le manda las alturas como mucho una vez
+    cada INTERVALO_ENVIO. Muestra las alturas uno de cada 5 bloques.
     """
     global contador, ultimo_envio, envios
 
@@ -88,6 +100,10 @@ def al_recibir_bloque(bloque, cantidad_muestras, tiempo, estado):
     # Suavizado: las barras suben enseguida y bajan de a CAIDA_BARRAS.
     bandas.suavizar(mostradas, alturas)
 
+    # Envío al Arduino: solo si hay conexión y ya pasó INTERVALO_ENVIO desde
+    # el último paquete (así no se manda en todos los bloques).
+    # armar_paquete ya convierte a entero y limita entre 0 y ALTURA_MAXIMA,
+    # por eso se le pasa `mostradas` con decimales.
     ahora = time.monotonic()
     if conexion is not None and (ahora - ultimo_envio) >= configuracion.INTERVALO_ENVIO:
         paquete = serie.armar_paquete(mostradas, modo, configuracion.SIN_NOTA)
@@ -102,22 +118,29 @@ def al_recibir_bloque(bloque, cantidad_muestras, tiempo, estado):
 
 # Solo se ejecuta con `python pc/principal.py`, no al importar el módulo.
 if __name__ == "__main__":
+    # Se intenta abrir el puerto del Arduino. Si no está enchufado (o el
+    # Monitor Serie del IDE lo tiene ocupado), se sigue sin enviar en vez
+    # de cortar el programa.
     try:
         conexion = serie.conectar(configuracion.PUERTO_SERIE)
         print("Arduino conectado")
     except serial.SerialException:
         print("No se encontró el Arduino: sigo sin enviar")
-    
-        inicio = time.monotonic()
-    
+
+    # Se empieza a medir después de conectar(), para que los paquetes por
+    # segundo no incluyan su espera de 2 s. Va antes del `try` para que
+    # `inicio` exista aunque se apriete Ctrl+C enseguida.
+    inicio = time.monotonic()
     try:
         numero = captura.buscar_dispositivo(configuracion.DISPOSITIVO_SISTEMA)
         print("Analizando… (Ctrl+C para salir)")
-        inicio = time.monotonic()
         captura.capturar_continuo(numero, al_recibir_bloque)
     except KeyboardInterrupt:
+        # Al llegar acá ya se salió del `with` de capturar_continuo(), así
+        # que el stream está cerrado y el callback no usa más el puerto.
         print("Análisis detenido")
         segundos = time.monotonic() - inicio
-        print(f"Envios: {envios}, Segundos: {segundos}, Paquetes por segundo: {envios / segundos}")
+        print(f"Envíos: {envios} en {segundos:.1f} s "
+              f"({envios / segundos:.1f} paquetes por segundo)")
         if conexion is not None:
             conexion.close()

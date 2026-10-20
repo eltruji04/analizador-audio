@@ -1,11 +1,11 @@
-# Analizador de audio — LEDs sincronizadas con audio
+# Analizador de Espectro de Frecuencias
 
 ![Python](https://img.shields.io/badge/Python-3.14-3776AB?logo=python&logoColor=white)
 ![Arduino](https://img.shields.io/badge/Arduino-Uno-00878F?logo=arduino&logoColor=white)
 ![Blynk](https://img.shields.io/badge/App-Blynk-23C48E)
 ![Estado](https://img.shields.io/badge/estado-en%20desarrollo-orange)
 
-Sistema que traduce la música en luz. Un programa en Python analiza en tiempo real el audio de la computadora y un **Arduino Uno** lo muestra en **una pantalla Oled**, con varios modos de visualización controlables desde una app de **Blynk** y desde una caja de controles físicos.
+Sistema que traduce la música en luz. Un programa en Python analiza en tiempo real el audio de la computadora y un **Arduino Uno** lo muestra en **una pantalla OLED**, con varios modos de visualización controlables desde una app de **Blynk** y desde una caja de controles físicos.
 
 Proyecto final del **Taller de Introducción a la Ingeniería Eléctrica (TallerInE Robótico)** — IIE, Facultad de Ingeniería, Universidad de la República.
 
@@ -17,15 +17,15 @@ Proyecto final del **Taller de Introducción a la Ingeniería Eléctrica (Taller
 - **Dos fuentes de audio:** el micrófono o lo que suena en la propia computadora.
 - **Modos combinables:** forma (barras o desde el centro) × color (fijo, arcoíris o según la nota que suena).
 - **Efectos:** marca de pico y destello con cada golpe del bombo.
-- **Control desde tres lugares sincronizados:** app de Blynk, botones y encoder, y programa en la computadora.
-- **Visualizador en pantalla** que reproduce lo mismo que los LEDs, con más resolución.
+- **Control desde tres lugares sincronizados:** app de Blynk, botones, y programa en la computadora.
+- **Visualizador en pantalla de computadora** muestra las bandas de forma continua y con alta resolucion.
 
 ## Arquitectura
 
 ```
 Audio ──► Computadora (Python)              USB serie              Arduino Uno
-          FFT · golpe · nota       ◄──────────────────────►        Oled 128x32
-          visualizador · Blynk                                  botones · encoder
+          FFT · golpe · nota       ◄──────────────────────►        OLED 128x32
+          visualizador · Blynk                                       botones 
 ```
 
 Todo el procesamiento de audio se hace en la computadora; el Arduino solo dibuja y lee los controles. Más detalles en [docs/diseno.md](docs/diseno.md).
@@ -93,16 +93,15 @@ analizador-audio/
 | Componente | Cantidad |
 |---|---|
 | Arduino Uno | 1 |
-| Oled 128x32 I2C | 1 | 
+| Oled 128x32 I2C | 1 |
 | Pulsadores | 4 |
 | LEDs indicadores con resistencia | 2 |
+| Caja de control | 1 |
  
-Conexiones, alimentación y consumo en [docs/diseno.md](docs/diseno.md#hardware).
-
 ## Equipo
 
 | Integrante | Área |
 |---|---|
 | Santiago Trujillo | Software en la computadora (Python) |
-| Lucía Hernández | Firmware del Arduino y protocolo serie |
+| Lucía Hernández | Firmware del Arduino y protocolo serie y pantalla OLED|
 | Benjamín Cabrera | Hardware, construcción y Blynk |

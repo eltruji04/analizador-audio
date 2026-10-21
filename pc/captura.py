@@ -94,7 +94,8 @@ def capturar_continuo(numero_dispositivo, procesar_bloque, en_cada_vuelta=None):
         # mantiene el stream abierto y atiende en_cada_vuelta cada ~10 ms.
         while True:
             if en_cada_vuelta is not None:
-                en_cada_vuelta()
+                if en_cada_vuelta() is False:
+                    break
             time.sleep(0.01)
 
 # Esta parte solo se ejecuta si se corre este archivo directamente (python pc/captura.py)

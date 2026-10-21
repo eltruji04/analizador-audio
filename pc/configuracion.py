@@ -40,7 +40,15 @@ INTERVALO_ENVIO = 1 / 30        # tiempo mínimo entre dos paquetes, en segundos
 RANGO_MINIMO_DB = 12.0       # distancia mínima entre piso y techo de una banda
 RANGO_MAXIMO_DB = 50.0       # distancia máxima entre piso y techo de una banda
 TECHO_MINIMO_DB = -70.0      # el techo nunca baja de acá (protege del silencio)
-VELOCIDAD_DB    = 0.3        # dB por bloque que se acercan piso y techo a la música
+VELOCIDAD_TECHO_DB = 0.005   # dB por bloque que baja el techo (~0,23 dB/s): casi fijo, así una parte suave se ve baja
+# El piso se mueve despacio en las dos direcciones: así no persigue los
+# pozos del ruido y el ruido de fondo queda por debajo de él (barras quietas).
+VELOCIDAD_PISO_BAJA_DB = 0.02  # dB por bloque que baja el piso (~0,9 dB/s)
+VELOCIDAD_PISO_SUBE_DB = 0.1   # dB por bloque que sube el piso (~4,7 dB/s)
+# Peso del nivel anterior al promediar los dB entre bloques (0 = sin
+# promedio). Con 0,7 el ruido deja de saltar de un bloque al otro; la
+# mitad de un cambio se ve en unos 2 bloques (~40 ms).
+PROMEDIO_DB = 0.7
 TECHO_INICIAL_DB = 25.0      # techo con el que arranca cada banda
 DISTANCIA_MAXIMA_DB = 35     # un techo no queda más de esto por debajo del techo más alto
 
@@ -48,7 +56,7 @@ DISTANCIA_MAXIMA_DB = 35     # un techo no queda más de esto por debajo del tec
 # Píxeles que baja cada barra por bloque, según la velocidad elegida con el
 # botón de caída: 0 = lento, 1 = normal, 2 = rápido.
 VELOCIDADES_CAIDA = [1.0, 2.0, 4.0]
-VELOCIDAD_INICIAL = 1 # índice en VELOCIDADES_CAIDA: arranca en la velocidad normal
+VELOCIDAD_INICIAL = 1  # índice en VELOCIDADES_CAIDA: arranca en la velocidad normal
 
 # --- Botones ---
 # Código del byte que manda el Arduino al apretar cada botón.
@@ -58,3 +66,5 @@ BOTON_PICO = 3    # muestra / oculta la marca de pico en la OLED y en el vizuali
 BOTON_GOLPE = 4   # activa / desactiva el efecto de golpe
 # Barras que se llenan cuando se detecta un golpe: la 1, 2, 15 y 16.
 BARRAS_GOLPE = [0, 1, 14, 15]
+
+INTERVALO_DIBUJO = 1 / 30    # tiempo mínimo entre dos cuadros del visualizador, en segundos

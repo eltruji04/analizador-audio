@@ -58,16 +58,35 @@ def calcular_bandas(muestras, ventana, mascaras):
     return numpy.array(energias)
 
 
+def promediar(db_suave, db):
+    """
+    Mezcla el nivel nuevo de cada banda (`db`) con el promedio de los
+    bloques anteriores (`db_suave`): PROMEDIO_DB del anterior y el resto
+    del nuevo. Modifica `db_suave` por dentro (con [:]).
+
+    Sirve sobre todo para los graves: las bandas 1 y 2 se calculan con
+    solo 2 valores del espectro, y sin promedio el ruido les hace saltar
+    el nivel unos 3 a 5 dB de un bloque al otro.
+    """
+    p = configuracion.PROMEDIO_DB
+    db_suave[:] = p * db_suave + (1 - p) * db
+
+
 def niveles_iniciales():
     """
     Crea los arreglos de piso y techo (en dB) con los que arranca la
     calibración automática: el techo en TECHO_INICIAL_DB y el piso
-    RANGO_MINIMO_DB por debajo. Solo importan los primeros segundos:
+    RANGO_MAXIMO_DB por debajo. Solo importan los primeros segundos:
     después se ajustan solos con la música.
+
+    El piso arranca lo más abajo posible porque baja despacio: si
+    arrancara cerca del techo, tardaría mucho en llegar al nivel de la
+    música y las barras se verían vacías al empezar. Desde abajo, sube
+    hasta quedar por encima del ruido en unos segundos.
     """
     techo = numpy.full(configuracion.CANTIDAD_BARRAS,
                        configuracion.TECHO_INICIAL_DB, dtype=float)
-    piso = techo - configuracion.RANGO_MINIMO_DB
+    piso = techo - configuracion.RANGO_MAXIMO_DB
     return piso, techo
 
 
@@ -79,20 +98,23 @@ def actualizar_niveles(piso, techo, db):
 
     Reglas, en este orden:
     1. Techo: si la música lo supera, sube enseguida; si no, baja
-       VELOCIDAD_DB por bloque. Además tiene dos límites:
+       VELOCIDAD_TECHO_DB por bloque (muy despacio, así una parte suave
+       se ve baja). Además tiene dos límites:
        - nunca baja de TECHO_MINIMO_DB, para que en un silencio
          (-120 dB) el techo no lo alcance y llene las barras;
        - nunca queda a más de DISTANCIA_MAXIMA_DB por debajo del techo
          más alto, para que una banda casi vacía (los agudos de un piano)
          no se "estire" y muestre ruido como si fuera música.
-    2. Piso: si la música baja de él, baja enseguida; si no, sube
-       VELOCIDAD_DB por bloque.
+    2. Piso: si la música baja de él, baja VELOCIDAD_PISO_BAJA_DB por
+       bloque; si no, sube VELOCIDAD_PISO_SUBE_DB. Despacio en las dos
+       direcciones: si bajara enseguida, seguiría cada pozo del ruido y
+       el ruido de fondo se vería como barras que tiemblan.
     3. La distancia entre piso y techo queda entre RANGO_MINIMO_DB (para
        no amplificar diferencias chiquitas) y RANGO_MAXIMO_DB (para que
        después de una pausa el piso no quede muy abajo y se recupere rápido).
     """
     # 1. Techo: sube enseguida, baja despacio.
-    nuevo_techo = numpy.where(db > techo, db, techo - configuracion.VELOCIDAD_DB)
+    nuevo_techo = numpy.where(db > techo, db, techo - configuracion.VELOCIDAD_TECHO_DB)
     # Límite absoluto: protege del silencio.
     nuevo_techo = numpy.maximum(nuevo_techo, configuracion.TECHO_MINIMO_DB)
     # Límite relativo a la banda más fuerte: protege de las bandas casi vacías.
@@ -100,8 +122,10 @@ def actualizar_niveles(piso, techo, db):
     nuevo_techo = numpy.maximum(nuevo_techo,
                                 techo_general - configuracion.DISTANCIA_MAXIMA_DB)
 
-    # 2. Piso: baja enseguida, sube despacio.
-    nuevo_piso = numpy.where(db < piso, db, piso + configuracion.VELOCIDAD_DB)
+    # 2. Piso: baja y sube despacio.
+    nuevo_piso = numpy.where(db < piso,
+                             piso - configuracion.VELOCIDAD_PISO_BAJA_DB,
+                             piso + configuracion.VELOCIDAD_PISO_SUBE_DB)
 
     # 3. Distancia entre piso y techo, entre RANGO_MINIMO y RANGO_MAXIMO.
     nuevo_piso = numpy.clip(nuevo_piso,
@@ -131,11 +155,15 @@ def suavizar(mostradas, alturas, caida):
     """
     Suaviza las barras para que no parpadeen: suben enseguida hasta la
     altura nueva, pero bajan como mucho `caida` píxeles por bloque
-    (VELOCIDADES_CAIDA según estado.velocidad). Modifica `mostradas` por
-    dentro (con [:]), así se conserva de un bloque al siguiente.
+    (VELOCIDADES_CAIDA según estado.velocidad), sin pasar de la altura
+    nueva. Modifica `mostradas` por dentro (con [:]), así se conserva de
+    un bloque al siguiente.
     """
-    nuevas = numpy.where(alturas > mostradas, alturas,
-                         mostradas - caida)
+    # La mayor de las dos: si la altura nueva es mayor, sube hasta ella;
+    # si es menor, baja `caida` pero sin pasarse. Si bajara siempre
+    # `caida`, con una nota que se apaga despacio la barra quedaría por
+    # debajo y en el bloque siguiente volvería a saltar (parpadeo).
+    nuevas = numpy.maximum(alturas, mostradas - caida)
     nuevas = numpy.clip(nuevas, 0, None)
     mostradas[:] = nuevas
 

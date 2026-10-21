@@ -37,6 +37,7 @@ import captura
 import bandas
 import serie
 import estado
+import visualizador
 
 
 # --- Preparación: se hace una sola vez, al empezar ---------------------
@@ -50,6 +51,9 @@ ventana, mascaras = bandas.preparar_analisis(n, fs)
 memoria = numpy.zeros(n)
 # Piso y techo de cada banda, en dB. Se ajustan solos con la música.
 piso, techo = bandas.niveles_iniciales()
+# Nivel de cada banda (dB) promediado entre bloques. None hasta el primer
+# bloque, que lo inicializa con su propio nivel.
+db_suave = None
 # Altura que se muestra de cada barra, ya suavizada. Empieza vacía.
 mostradas = numpy.zeros(configuracion.CANTIDAD_BARRAS)
 # Cantidad de bloques procesados (para imprimir solo uno de cada 5).
@@ -70,6 +74,7 @@ conexion = None
 # pausa, ese paquete sale una sola vez. Vuelve a False al salir de la pausa.
 pausa_enviada = False
 
+ultimo_dibujo = 0     # momento del último cuadro dibujado (time.monotonic())
 
 def al_recibir_bloque(bloque, cantidad_muestras, tiempo, aviso):
     """
@@ -83,7 +88,7 @@ def al_recibir_bloque(bloque, cantidad_muestras, tiempo, aviso):
 
     Corre en un hilo aparte (el de sounddevice), no en el bucle principal.
     """
-    global contador, ultimo_envio, envios, pausa_enviada
+    global contador, ultimo_envio, envios, pausa_enviada, db_suave
 
     # `aviso` está vacío si no hubo problemas; si se perdió audio, lo muestra.
     if aviso:
@@ -106,11 +111,18 @@ def al_recibir_bloque(bloque, cantidad_muestras, tiempo, aviso):
     # para no calcular log10(0) en silencio; por eso el silencio da -120 dB.
     db = 10 * numpy.log10(energias + 0.000000000001)
 
+    # Promedio entre bloques: calma los saltos del ruido, sobre todo en los
+    # graves. El primer bloque solo inicializa el promedio.
+    if db_suave is None:
+        db_suave = db.copy()
+    else:
+        bandas.promediar(db_suave, db)
+
     # Calibración automática: cada banda ajusta su piso y su techo según
     # lo que está sonando, así se ve bien con música fuerte o suave.
-    bandas.actualizar_niveles(piso, techo, db)
+    bandas.actualizar_niveles(piso, techo, db_suave)
     # dB → altura entre 0 (en el piso) y ALTURA_MAXIMA (en el techo).
-    alturas = bandas.a_alturas(db, piso, techo)
+    alturas = bandas.a_alturas(db_suave, piso, techo)
     caida = configuracion.VELOCIDADES_CAIDA[estado.velocidad]
     # Suavizado: las barras suben enseguida y bajan 'caida' px por bloque.
     bandas.suavizar(mostradas, alturas, caida)
@@ -145,6 +157,15 @@ def al_recibir_bloque(bloque, cantidad_muestras, tiempo, aviso):
     if contador % 5 == 0:
         print(f"Alturas: {mostradas.round().astype(int)}")
 
+def en_cada_vuelta():
+    global ultimo_dibujo
+    atender_botones()
+    ahora = time.monotonic()
+    if (ahora - ultimo_dibujo) >= configuracion.INTERVALO_DIBUJO:
+        ultimo_dibujo = ahora
+        alturas = mostradas.copy()
+        return visualizador.dibujar(alturas, modo, configuracion.SIN_NOTA, estado.velocidad, estado.pausa)
+    return True
 
 def atender_botones():
     """
@@ -187,14 +208,23 @@ if __name__ == "__main__":
             raise ValueError(f"Fuente de audio desconocida: {configuracion.FUENTE_AUDIO}")
         print(f"Usando dispositivo: {nombre}")
         numero = captura.buscar_dispositivo(nombre)
-        print("Analizando… (Ctrl+C para salir)")
-        captura.capturar_continuo(numero, al_recibir_bloque, atender_botones)
+        visualizador.iniciar()
+        print("Analizando… (Ctrl+C o cerrar la ventana para salir)")
+        # Termina cuando en_cada_vuelta() devuelve False (se cerró la
+        # ventana) o con Ctrl+C.
+        captura.capturar_continuo(numero, al_recibir_bloque, en_cada_vuelta)
     except KeyboardInterrupt:
-        # Al llegar acá ya se salió del `with` de capturar_continuo(), así
-        # que el stream está cerrado y el callback no usa más el puerto.
+        # Ctrl+C: no hay nada más que hacer acá; el cierre está en `finally`.
+        pass
+    finally:
+        # Se ejecuta siempre, se haya salido con Ctrl+C, cerrando la
+        # ventana o por un error. Al llegar acá ya se salió del `with` de
+        # capturar_continuo(), así que el stream está cerrado y el callback
+        # no usa más el puerto.
         print("Análisis detenido")
         segundos = time.monotonic() - inicio
         print(f"Envíos: {envios} en {segundos:.1f} s "
               f"({envios / segundos:.1f} paquetes por segundo)")
         if conexion is not None:
             conexion.close()
+        visualizador.cerrar()

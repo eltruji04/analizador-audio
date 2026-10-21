@@ -58,6 +58,7 @@ modo = configuracion.FUENTE_AUDIO
 # Puerto serie abierto con el Arduino. None = no hay Arduino conectado:
 # el análisis sigue funcionando, pero no se envía nada.
 conexion = None
+pausa_enviada = False
 
 
 def al_recibir_bloque(bloque, cantidad_muestras, tiempo, aviso):
@@ -69,7 +70,7 @@ def al_recibir_bloque(bloque, cantidad_muestras, tiempo, aviso):
     Si hay Arduino conectado, le manda las alturas como mucho una vez
     cada INTERVALO_ENVIO. Muestra las alturas uno de cada 5 bloques.
     """
-    global contador, ultimo_envio, envios
+    global contador, ultimo_envio, envios, pausa_enviada
 
     # `aviso` está vacío si no hubo problemas; si se perdió audio, lo muestra.
     if aviso:
@@ -101,20 +102,45 @@ def al_recibir_bloque(bloque, cantidad_muestras, tiempo, aviso):
     # Suavizado: las barras suben enseguida y bajan 'caida' px por bloque.
     bandas.suavizar(mostradas, alturas, caida)
 
+    # Se lee una sola vez: el botón la cambia desde otro hilo, y así el
+    # `if` y el paquete usan el mismo valor aunque cambie en el medio.
+    pausa = estado.pausa
     # Envío al Arduino: solo si hay conexión y ya pasó INTERVALO_ENVIO desde
     # el último paquete (así no se manda en todos los bloques).
     # armar_paquete ya convierte a entero y limita entre 0 y ALTURA_MAXIMA,
     # por eso se le pasa `mostradas` con decimales.
     ahora = time.monotonic()
     if conexion is not None and (ahora - ultimo_envio) >= configuracion.INTERVALO_ENVIO:
-        paquete = serie.armar_paquete(mostradas, modo, configuracion.SIN_NOTA, estado.pausa, estado.pico)
-        serie.enviar(conexion, paquete)
-        ultimo_envio = ahora
-        envios += 1
+        if pausa == 0:
+            # Funcionamiento normal: se envía siempre.
+            paquete = serie.armar_paquete(mostradas, modo, configuracion.SIN_NOTA, pausa, estado.pico)
+            serie.enviar(conexion, paquete)
+            ultimo_envio = ahora
+            envios += 1
+            pausa_enviada = False
+        elif not pausa_enviada:
+            # Recién se entró en pausa: un último paquete (con pausa = 1)
+            # para que el Arduino sepa que tiene que congelar la pantalla.
+            paquete = serie.armar_paquete(mostradas, modo, configuracion.SIN_NOTA, pausa, estado.pico)
+            serie.enviar(conexion, paquete)
+            ultimo_envio = ahora
+            envios += 1
+            pausa_enviada = True
+        # Si no: en pausa y el Arduino ya fue avisado, no se envía nada.
 
     contador += 1
     if contador % 5 == 0:
         print(f"Alturas: {mostradas.round().astype(int)}")
+
+
+def atender_botones():
+    if conexion is None:
+        return
+    codigo = serie.leer_boton(conexion)
+    if codigo is not None:
+        estado.aplicar_accion(codigo)
+        print(f"Botón recibido: {codigo}, Estado nuevo: {estado}")
+
 
 
 # Solo se ejecuta con `python pc/principal.py`, no al importar el módulo.
@@ -142,7 +168,7 @@ if __name__ == "__main__":
         print(f"Usando dispositivo: {nombre}")
         numero = captura.buscar_dispositivo(nombre)
         print("Analizando… (Ctrl+C para salir)")
-        captura.capturar_continuo(numero, al_recibir_bloque)
+        captura.capturar_continuo(numero, al_recibir_bloque, atender_botones)
     except KeyboardInterrupt:
         # Al llegar acá ya se salió del `with` de capturar_continuo(), así
         # que el stream está cerrado y el callback no usa más el puerto.

@@ -64,7 +64,7 @@ def al_recibir_bloque(bloque, cantidad_muestras, tiempo, estado):
     cantidad = int(nivel * 100)
     print("#" * cantidad)    
 
-def capturar_continuo(numero_dispositivo, procesar_bloque):
+def capturar_continuo(numero_dispositivo, procesar_bloque, en_cada_vuelta=None):
     """
     Captura audio de forma continua desde el dispositivo indicado.
  
@@ -83,7 +83,9 @@ def capturar_continuo(numero_dispositivo, procesar_bloque):
         latency='low',
         callback=procesar_bloque):
         while True:
-            time.sleep(0.1)
+            if en_cada_vuelta is not None:
+                en_cada_vuelta()
+            time.sleep(0.01)
 
 # Esta parte solo se ejecuta si se corre este archivo directamente (python pc/captura.py)
 # no cuando otro módulo lo importa.

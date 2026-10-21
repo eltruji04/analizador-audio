@@ -107,7 +107,7 @@ def al_recibir_bloque(bloque, cantidad_muestras, tiempo, aviso):
     # por eso se le pasa `mostradas` con decimales.
     ahora = time.monotonic()
     if conexion is not None and (ahora - ultimo_envio) >= configuracion.INTERVALO_ENVIO:
-        paquete = serie.armar_paquete(mostradas, modo, configuracion.SIN_NOTA)
+        paquete = serie.armar_paquete(mostradas, modo, configuracion.SIN_NOTA, estado.pausa, estado.pico)
         serie.enviar(conexion, paquete)
         ultimo_envio = ahora
         envios += 1

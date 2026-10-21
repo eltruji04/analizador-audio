@@ -67,10 +67,18 @@ def al_recibir_bloque(bloque, cantidad_muestras, tiempo, estado):
 def capturar_continuo(numero_dispositivo, procesar_bloque, en_cada_vuelta=None):
     """
     Captura audio de forma continua desde el dispositivo indicado.
- 
+
     El audio llega en bloques y cada bloque se pasa a `procesar_bloque`,
     una función que recibe (bloque, cantidad_muestras, tiempo, estado)
     y que llama sounddevice cada vez que hay un bloque listo.
+
+    `en_cada_vuelta` (opcional) es una función sin parámetros que se llama
+    unas 100 veces por segundo desde el hilo principal, no desde el
+    callback. Sirve para lo que no puede ir en el callback, como leer los
+    botones del Arduino.
+
+    No termina nunca: se sale con Ctrl+C (KeyboardInterrupt), y al salir
+    del `with` el stream se cierra.
     """
     info = sounddevice.query_devices(numero_dispositivo)
     canales = info['max_input_channels']
@@ -82,6 +90,8 @@ def capturar_continuo(numero_dispositivo, procesar_bloque, en_cada_vuelta=None):
         blocksize=configuracion.TAMANO_BLOQUE, 
         latency='low',
         callback=procesar_bloque):
+        # El audio lo procesa el callback en otro hilo; este bucle solo
+        # mantiene el stream abierto y atiende en_cada_vuelta cada ~10 ms.
         while True:
             if en_cada_vuelta is not None:
                 en_cada_vuelta()

@@ -7,7 +7,7 @@ bandas.py — Análisis de las 16 bandas de frecuencia y cálculo de las barras.
 2. Ajusta solo el piso y el techo de cada banda (calibración automática),
    para que las barras se vean bien con música fuerte o suave.
 3. Convierte los dB en alturas de barra entre 0 y ALTURA_MAXIMA.
-4. Suaviza las barras: suben enseguida y bajan despacio.
+4. Suaviza las barras: suben enseguida y bajan a la velocidad de caída elegida.
 """
 
 import numpy
@@ -129,8 +129,10 @@ def a_alturas(db, piso, techo):
 
 def suavizar(mostradas, alturas, caida):
     """
-    Suaviza las barras para que no parpadeen.
-    'caida' es la cantidad de px que bajan por bloque. Suben enseguida.
+    Suaviza las barras para que no parpadeen: suben enseguida hasta la
+    altura nueva, pero bajan como mucho `caida` píxeles por bloque
+    (VELOCIDADES_CAIDA según estado.velocidad). Modifica `mostradas` por
+    dentro (con [:]), así se conserva de un bloque al siguiente.
     """
     nuevas = numpy.where(alturas > mostradas, alturas,
                          mostradas - caida)

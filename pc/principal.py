@@ -6,9 +6,17 @@ Captura el audio de forma continua y, cada vez que llega un bloque nuevo:
 2. calcula la energía de las 16 bandas y la pasa a decibeles (dB);
 3. ajusta solo el piso y el techo de cada banda (calibración automática);
 4. convierte los dB en alturas de barra entre 0 y ALTURA_MAXIMA (32);
-5. suaviza las barras: suben enseguida y bajan despacio;
-6. si hay un Arduino conectado, le manda las alturas por el puerto serie
-   (paquete de 19 bytes, unos 21 por segundo).
+5. suaviza las barras: suben enseguida y bajan según la velocidad de
+   caída elegida (estado.velocidad);
+6. si hay un Arduino conectado y no está en pausa, le manda las alturas
+   por el puerto serie (paquete de 21 bytes, unos 21 por segundo).
+
+Mientras tanto, el bucle principal lee los botones del Arduino unas 100
+veces por segundo y aplica cada uno con estado.aplicar_accion().
+
+Pausa: al entrar en pausa se manda un último paquete con pausa = 1 y
+después no se envía nada más hasta salir de la pausa. La compu sigue
+capturando y analizando.
 
 Por qué una ventana deslizante:
 - Los bloques llegan de a TAMANO_BLOQUE muestras (1024, unos 21 ms):
@@ -58,6 +66,8 @@ modo = configuracion.FUENTE_AUDIO
 # Puerto serie abierto con el Arduino. None = no hay Arduino conectado:
 # el análisis sigue funcionando, pero no se envía nada.
 conexion = None
+# True cuando ya se mandó el último paquete con pausa = 1: así, durante la
+# pausa, ese paquete sale una sola vez. Vuelve a False al salir de la pausa.
 pausa_enviada = False
 
 
@@ -68,7 +78,10 @@ def al_recibir_bloque(bloque, cantidad_muestras, tiempo, aviso):
     Agrega el bloque a la memoria, analiza las últimas n muestras,
     actualiza la calibración y calcula la altura suavizada de cada barra.
     Si hay Arduino conectado, le manda las alturas como mucho una vez
-    cada INTERVALO_ENVIO. Muestra las alturas uno de cada 5 bloques.
+    cada INTERVALO_ENVIO; en pausa, solo el primer paquete (con pausa = 1).
+    Muestra las alturas uno de cada 5 bloques.
+
+    Corre en un hilo aparte (el de sounddevice), no en el bucle principal.
     """
     global contador, ultimo_envio, envios, pausa_enviada
 
@@ -134,12 +147,19 @@ def al_recibir_bloque(bloque, cantidad_muestras, tiempo, aviso):
 
 
 def atender_botones():
+    """
+    Lee un botón del Arduino (si llegó alguno) y lo aplica al estado.
+
+    La llama capturar_continuo() unas 100 veces por segundo desde el
+    hilo principal, no desde el callback. Sin Arduino no hace nada.
+    """
     if conexion is None:
         return
     codigo = serie.leer_boton(conexion)
     if codigo is not None:
         estado.aplicar_accion(codigo)
-        print(f"Botón recibido: {codigo}, Estado nuevo: {estado}")
+        print(f"Botón recibido: {codigo}. Estado nuevo: velocidad={estado.velocidad}, "
+              f"pausa={estado.pausa}, pico={estado.pico}, golpe={estado.golpe}")
 
 
 

@@ -28,6 +28,7 @@ import configuracion
 import captura
 import bandas
 import serie
+import estado
 
 
 # --- Preparación: se hace una sola vez, al empezar ---------------------
@@ -52,15 +53,14 @@ contador = 0
 ultimo_envio = 0
 # Cantidad de paquetes enviados.
 envios = 0
-# Fuente de audio que se informa en el paquete. Por ahora siempre
-# LINE (audio de la pc); falta la selección MIC/LINE.
-modo = configuracion.MODO_LINE
+# Fuente de audio que se informa en el paquete.
+modo = configuracion.FUENTE_AUDIO
 # Puerto serie abierto con el Arduino. None = no hay Arduino conectado:
 # el análisis sigue funcionando, pero no se envía nada.
 conexion = None
 
 
-def al_recibir_bloque(bloque, cantidad_muestras, tiempo, estado):
+def al_recibir_bloque(bloque, cantidad_muestras, tiempo, aviso):
     """
     Función que llama sounddevice con cada bloque de audio (callback).
 
@@ -71,9 +71,9 @@ def al_recibir_bloque(bloque, cantidad_muestras, tiempo, estado):
     """
     global contador, ultimo_envio, envios
 
-    # `estado` está vacío si no hubo problemas; si se perdió audio, lo muestra.
-    if estado:
-        print(estado)
+    # `aviso` está vacío si no hubo problemas; si se perdió audio, lo muestra.
+    if aviso:
+        print(aviso)
 
     # Si el dispositivo es estéreo (BlackHole), se promedian los canales.
     mono = bandas.a_mono(bloque)
@@ -97,8 +97,9 @@ def al_recibir_bloque(bloque, cantidad_muestras, tiempo, estado):
     bandas.actualizar_niveles(piso, techo, db)
     # dB → altura entre 0 (en el piso) y ALTURA_MAXIMA (en el techo).
     alturas = bandas.a_alturas(db, piso, techo)
-    # Suavizado: las barras suben enseguida y bajan de a CAIDA_BARRAS.
-    bandas.suavizar(mostradas, alturas)
+    caida = configuracion.VELOCIDADES_CAIDA[estado.velocidad]
+    # Suavizado: las barras suben enseguida y bajan 'caida' px por bloque.
+    bandas.suavizar(mostradas, alturas, caida)
 
     # Envío al Arduino: solo si hay conexión y ya pasó INTERVALO_ENVIO desde
     # el último paquete (así no se manda en todos los bloques).
@@ -132,7 +133,14 @@ if __name__ == "__main__":
     # `inicio` exista aunque se apriete Ctrl+C enseguida.
     inicio = time.monotonic()
     try:
-        numero = captura.buscar_dispositivo(configuracion.DISPOSITIVO_SISTEMA)
+        if configuracion.FUENTE_AUDIO == configuracion.MODO_MIC:
+            nombre = configuracion.DISPOSITIVO_MICROFONO
+        elif configuracion.FUENTE_AUDIO == configuracion.MODO_LINE:
+            nombre = configuracion.DISPOSITIVO_SISTEMA
+        else:
+            raise ValueError(f"Fuente de audio desconocida: {configuracion.FUENTE_AUDIO}")
+        print(f"Usando dispositivo: {nombre}")
+        numero = captura.buscar_dispositivo(nombre)
         print("Analizando… (Ctrl+C para salir)")
         captura.capturar_continuo(numero, al_recibir_bloque)
     except KeyboardInterrupt:

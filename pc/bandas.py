@@ -127,12 +127,13 @@ def a_alturas(db, piso, techo):
     return alturas
 
 
-def suavizar(mostradas, alturas):
+def suavizar(mostradas, alturas, caida):
     """
     Suaviza las barras para que no parpadeen.
+    'caida' es la cantidad de px que bajan por bloque. Suben enseguida.
     """
     nuevas = numpy.where(alturas > mostradas, alturas,
-                         mostradas - configuracion.CAIDA_BARRAS)
+                         mostradas - caida)
     nuevas = numpy.clip(nuevas, 0, None)
     mostradas[:] = nuevas
 

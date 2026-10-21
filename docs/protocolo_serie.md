@@ -15,18 +15,23 @@ Comunicación por USB entre la computadora (`pc/serie.py`) y el Arduino Uno. **S
 
 Como ningún otro byte puede valer 255, el Arduino lo usa para encontrar el comienzo de cada paquete.
 
-C = 0
-C# = 1
-D = 2
-D# = 3
-E = 4
-F = 5
-F# = 6
-G = 7
-G# = 8
-A = 9
-A# = 10
-B = 11.
+### Valores de la nota (byte 18)
+
+| Valor | Nota | Nombre |
+|---|---|---|
+| `0` | C | Do |
+| `1` | C# | Do# |
+| `2` | D | Re |
+| `3` | D# | Re# |
+| `4` | E | Mi |
+| `5` | F | Fa |
+| `6` | F# | Fa# |
+| `7` | G | Sol |
+| `8` | G# | Sol# |
+| `9` | A | La |
+| `10` | A# | La# |
+| `11` | B | Si |
+| `12` | — | Sin nota |
 
 ## Arduino → computadora
 

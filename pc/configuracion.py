@@ -22,6 +22,7 @@ CANTIDAD_BARRAS = len(BANDAS)
 ALTURA_MAXIMA = 32
 MODO_MIC = 0
 MODO_LINE = 1
+FUENTE_AUDIO = MODO_LINE # Cambiar a MODO_MIC si se quiere usar el micrófono en lugar de la entrada de línea
 SIN_NOTA = 12
 INTERVALO_ENVIO = 1 / 30
 
@@ -34,4 +35,12 @@ TECHO_INICIAL_DB = 25.0
 DISTANCIA_MAXIMA_DB = 35  
 
 # Parámetros de visualización
-CAIDA_BARRAS = 2.0     # Ajustar cuando este listo el visualizador para que las barras bajen más rápido o más lento.
+VELOCIDADES_CAIDA = [1.0, 2.0, 4.0]
+VELOCIDAD_INICIAL = 1 # Iniciamos con la velocidad de caida normal
+
+# Botones
+BOTON_CAIDA = 1
+BOTON_PAUSA = 2
+BOTON_PICO = 3
+BOTON_GOLPE = 4
+BARRAS_GOLPE = [0, 1, 14, 15]

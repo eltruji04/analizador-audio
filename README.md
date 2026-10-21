@@ -18,7 +18,7 @@ Proyecto final del **Taller de Introducción a la Ingeniería Eléctrica (Taller
 - **Modos combinables:** forma (barras o desde el centro) × color (fijo, arcoíris o según la nota que suena).
 - **Efectos:** marca de pico y destello con cada golpe del bombo.
 - **Control desde tres lugares sincronizados:** app de Blynk, botones, y programa en la computadora.
-- **Visualizador en pantalla de computadora** muestra las bandas de forma continua y con alta resolucion.
+- **Visualizador en pantalla de computadora** muestra las bandas de forma continua y con alta resolución.
 
 ## Arquitectura
 
@@ -93,11 +93,11 @@ analizador-audio/
 | Componente | Cantidad |
 |---|---|
 | Arduino Uno | 1 |
-| Oled 128x32 I2C | 1 |
+| OLED 128x32 I2C | 1 |
 | Pulsadores | 4 |
 | LEDs indicadores con resistencia | 2 |
 | Caja de control | 1 |
- 
+
 ## Equipo
 
 | Integrante | Área |

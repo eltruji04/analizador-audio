@@ -13,7 +13,6 @@ Documento de referencia del diseño acordado. Para instalar y usar el programa, 
 - [App en Blynk](#app-en-blynk)
 - [Visualizador en pantalla](#visualizador-en-pantalla)
 - [Procesamiento de audio](#procesamiento-de-audio)
-- [Decisiones de diseño](#decisiones-de-diseño)
 - [Calendario](#calendario)
 - [Riesgos y pendientes](#riesgos-y-pendientes)
 
@@ -36,12 +35,12 @@ Música ──► Computadora (Python)
                 │   USB (puerto serie, en los dos sentidos)
                 ▼
            Arduino Uno
-           Oled 128x32 I2C ·
+           OLED 128x32 I2C ·
            4 pulsadores · 2 LEDs indicadores
 ```
 
 - **Computadora:** hace todo el procesamiento de audio y se conecta a Blynk. Le manda al Arduino las alturas de las barras, la fuente de audio activa y la nota.
-- **Arduino Uno:** actualiza el Oled y los indicadores, y lee los botones. Le devuelve a la computadora los cambios hechos con los controles físicos **[A CONFIRMAR: formato de ese mensaje]**.
+- **Arduino Uno:** actualiza el OLED y los indicadores, y lee los botones. Le devuelve a la computadora los cambios hechos con los controles físicos **[A CONFIRMAR: formato de ese mensaje]**.
 - **Blynk:** se conecta **desde la computadora**, no desde la placa, usando su API HTTP **[SIN VERIFICAR: que permita leer y escribir los valores de la app desde Python, y qué incluye el plan gratuito]**. Necesita internet.
 - **Sincronización:** un cambio hecho desde los botones o la app tiene que actualizar todo el sistema.
 
@@ -59,19 +58,19 @@ Música ──► Computadora (Python)
 
 ### Pantalla
 
-**Oled 128x32 I2C**, en A4/A5 y 5 V. Muestra las bandas de audio, la conexion activa (linea o microfono) y y la nota.
+**OLED 128x32 I2C**, en A4/A5 y 5 V. Muestra las bandas de audio, la conexión activa (línea o micrófono) y la nota.
 
 ### Controles físicos (caja de control)
 
 | Control | Función |
 |---|---|
-| Pulsador 1 | Modo de forma |
+| Pulsador 1 | Fuente de audio  |
 | Pulsador 2 | Pausar Arduino |
 | Pulsador 3 | Marca de pico |
 | Pulsador 4 | Modo golpe |
 | 2 LEDs indicadores | Fuente de audio activa: micrófono o computadora |
 
-Los pulsadores usan `INPUT_PULLUP` (apretado = `LOW`) con filtro de rebote por software. Los pines 0 y 1 los usa el USB y A4/A5 la Oled **[A CONFIRMAR: asignación del resto de los pines]**.
+Los pulsadores usan `INPUT_PULLUP` (apretado = `LOW`) con filtro de rebote por software. Los pines 0 y 1 los usa el USB y A4/A5 la OLED **[A CONFIRMAR: asignación del resto de los pines]**.
 
 ---
 
@@ -81,8 +80,8 @@ La **forma** y el **color** se eligen por separado y se combinan libremente.
 
 | Forma | Descripción |
 |---|---|
-| Barras verticales | Cada torre sube y baja según el volumen de su banda |
-| Desde el centro | La luz sale del centro de la torre hacia arriba y hacia abajo |
+| Barras verticales | Cada barra sube y baja según el volumen de su banda |
+| Desde el centro | La luz sale del centro de la barra hacia arriba y hacia abajo |
 
 | Color | Descripción |
 |---|---|
@@ -93,13 +92,13 @@ La **forma** y el **color** se eligen por separado y se combinan libremente.
 **Opciones** (funcionan con cualquier modo):
 
 - **Marca de pico:** queda marcado el punto más alto que alcanzó cada barra.
-- **Modo golpe:** detecta la pegada del bombo en las bandas graves y en cada golpe enciende todos los LEDs de las torres 1, 2, 7 y 8 (solo esas, para limitar el consumo).
+- **Modo golpe:** detecta la pegada del bombo en las bandas graves y en cada golpe activa todas las barras 1, 2, 15 y 16.
 
 ---
 
 ## App en Blynk
 
-- **Controles:** encendido, brillo, modo de forma, modo de color, color fijo, marca de pico, modo golpe y fuente de audio.
+- **Controles:** pausa, marca de pico, modo golpe y fuente de audio.
 - **Tablero de registro de uso** (pauta mínima de la cátedra) **[A CONFIRMAR: contenido]**.
 - **Opcional:** guardar conjuntos de efectos.
 
@@ -111,7 +110,7 @@ El token es una clave privada y **nunca se sube al repositorio**, aunque sea pri
 
 ## Visualizador en pantalla
 
-Es parte del producto, no solo una herramienta de prueba. Muestra en la computadora un analizador de espectro que reproduce lo mismo que la Oled, con **altura continua** en vez de escalones, y respeta los mismos modos (forma, color, pico, golpe, brillo, encendido). Además muestra el estado: modos, fuente de audio, brillo, opciones activas y conexión con el Arduino y Blynk.
+Es parte del producto, no solo una herramienta de prueba. Muestra en la computadora un analizador de espectro que reproduce lo mismo que la OLED, con **altura continua** en vez de escalones, y respeta los mismos modos (forma, pico, golpe). Además muestra el estado: modos, fuente de audio, brillo, opciones activas y conexión con el Arduino y Blynk.
 
 Como las reglas de cada modo quedan escritas dos veces (C++ en el Arduino y Python en la pantalla), conviene tener un documento común entre las dos partes. **[SIN VERIFICAR]** Qué librería de dibujo en Python rinde mejor a 30–60 cuadros por segundo.
 
@@ -140,8 +139,8 @@ El formato de los datos que se mandan al Arduino está en [protocolo_serie.md](p
 | Fecha | Entrega |
 |---|---|
 | 13/10 | Revisión del marco de proyecto |
-| **03/11** | **Hito 1:** diseño completo, materiales comprados y la cadena completa funcionando con una torre (audio → FFT → puerto serie → 8 LEDs) |
-| **17/11** | **Hito 2:** las 8 torres armadas, todos los modos, controles físicos, LCD y app de Blynk |
+| **03/11** | **Hito 1:** diseño completo, materiales comprados y la cadena completa funcionando con una torre (audio → FFT → puerto serie → OLED) |
+| **17/11** | **Hito 2:** la caja de control armada, todos los modos, controles físicos, OLED y app de Blynk |
 | **24/11** | **Informe técnico y código final:** sistema integrado y probado |
 | 07/12 | Entrega de la presentación |
 | 08/12 | Presentación y demostración final |
@@ -157,7 +156,7 @@ El formato de los datos que se mandan al Arduino está en [protocolo_serie.md](p
 1. **Modo por nota:** es la parte más difícil; conviene tener una versión simplificada como plan B.
 2. **Blynk desde Python:** falta confirmar la API HTTP y los límites del plan gratuito.
 3. **Micrófono de la computadora:** puede captar poco en los extremos del espectro; probarlo con tonos.
-4. **Retardo entre sonido y luz:** medirlo en las pruebas finales.
+4. **Retardo entre sonido y pantalla:** medirlo en las pruebas finales.
 
 **Decisiones pendientes**
 

@@ -8,11 +8,15 @@ Captura el audio de forma continua y, cada vez que llega un bloque nuevo:
 4. convierte los dB en alturas de barra entre 0 y ALTURA_MAXIMA (32);
 5. suaviza las barras: suben enseguida y bajan según la velocidad de
    caída elegida (estado.velocidad);
-6. si hay un Arduino conectado y no está en pausa, le manda las alturas
-   por el puerto serie (paquete de 21 bytes, unos 21 por segundo).
+6. actualiza los picos, el destello de golpe (golpe.py) y la nota (nota.py)
+   y los deja en estado.py para el visualizador;
+7. si no está en pausa, arma el paquete de 21 bytes (unos 21 por segundo):
+   lo guarda en el estado para el espejo de la OLED y, si hay un Arduino
+   conectado, se lo manda por el puerto serie.
 
 Mientras tanto, el bucle principal lee los botones del Arduino unas 100
-veces por segundo y aplica cada uno con estado.aplicar_accion().
+veces por segundo y aplica cada uno con estado.aplicar_accion(), y dibuja
+el visualizador unas 30 veces por segundo.
 
 Pausa: al entrar en pausa se manda un último paquete con pausa = 1 y
 después no se envía nada más hasta salir de la pausa. La compu sigue
@@ -37,6 +41,9 @@ import captura
 import bandas
 import serie
 import estado
+import golpe
+import nota
+import blynk_cliente
 import visualizador
 
 
@@ -56,6 +63,15 @@ piso, techo = bandas.niveles_iniciales()
 db_suave = None
 # Altura que se muestra de cada barra, ya suavizada. Empieza vacía.
 mostradas = numpy.zeros(configuracion.CANTIDAD_BARRAS)
+# Relleno de golpe: las BARRAS_GOLPE suben a ALTURA_MAXIMA con cada golpe y
+# bajan con la misma caída que las barras. Va aparte de `mostradas` para
+# que el visualizador lo dibuje transparente detrás de la barra real; al
+# Arduino se le manda el máximo de los dos.
+destello = numpy.zeros(configuracion.CANTIDAD_BARRAS)
+# Marca de pico de cada barra (sube con la barra, baja despacio).
+picos = numpy.zeros(configuracion.CANTIDAD_BARRAS)
+# Momento (time.monotonic()) del último golpe con el efecto activo. None = ninguno.
+momento_golpe = None
 # Cantidad de bloques procesados (para imprimir solo uno de cada 5).
 contador = 0
 
@@ -74,21 +90,24 @@ conexion = None
 # pausa, ese paquete sale una sola vez. Vuelve a False al salir de la pausa.
 pausa_enviada = False
 
-ultimo_dibujo = 0     # momento del último cuadro dibujado (time.monotonic())
+# --- Visualizador ---
+# Momento del último cuadro dibujado (time.monotonic()). Empieza en 0 para
+# que el primer cuadro se dibuje enseguida.
+ultimo_dibujo = 0
 
 def al_recibir_bloque(bloque, cantidad_muestras, tiempo, aviso):
     """
     Función que llama sounddevice con cada bloque de audio (callback).
 
     Agrega el bloque a la memoria, analiza las últimas n muestras,
-    actualiza la calibración y calcula la altura suavizada de cada barra.
-    Si hay Arduino conectado, le manda las alturas como mucho una vez
-    cada INTERVALO_ENVIO; en pausa, solo el primer paquete (con pausa = 1).
-    Muestra las alturas uno de cada 5 bloques.
+    actualiza la calibración y calcula la altura suavizada de cada barra,
+    los picos, el destello de golpe y la nota, y los publica en el estado.
+    Arma el paquete como mucho una vez cada INTERVALO_ENVIO (en pausa,
+    solo el primero, con pausa = 1) y lo manda si hay Arduino conectado.
 
     Corre en un hilo aparte (el de sounddevice), no en el bucle principal.
     """
-    global contador, ultimo_envio, envios, pausa_enviada, db_suave
+    global contador, ultimo_envio, pausa_enviada, db_suave, momento_golpe
 
     # `aviso` está vacío si no hubo problemas; si se perdió audio, lo muestra.
     if aviso:
@@ -126,59 +145,97 @@ def al_recibir_bloque(bloque, cantidad_muestras, tiempo, aviso):
     caida = configuracion.VELOCIDADES_CAIDA[estado.velocidad]
     # Suavizado: las barras suben enseguida y bajan 'caida' px por bloque.
     bandas.suavizar(mostradas, alturas, caida)
+    bandas.actualizar_picos(picos, mostradas)
+
+    ahora = time.monotonic()
+    # Golpe: el destello baja con la misma caída que las barras y, si
+    # golpe.py detecta uno con el efecto activo, las BARRAS_GOLPE se llenan.
+    # La detección usa los dB sin promediar: el promedio achata el bombo.
+    bandas.suavizar(destello, numpy.zeros(len(destello)), caida)
+    # detectar() va primero en el `and`: así se llama en todos los bloques
+    # y golpe.py sigue viendo el audio aunque el efecto esté apagado.
+    if golpe.detectar(db, techo, ahora) and estado.golpe:
+        destello[configuracion.BARRAS_GOLPE] = configuracion.ALTURA_MAXIMA
+        momento_golpe = ahora
+
+    # Nota fundamental (byte 18 del paquete) y, para el afinador, su
+    # frecuencia y el desvío en cents.
+    numero_nota, frecuencia, cents = nota.estimar(memoria, fs)
+    # Todo lo que dibuja el visualizador, de una sola vez.
+    estado.publicar_audio(mostradas, destello, picos, numero_nota, frecuencia, cents, momento_golpe)
 
     # Se lee una sola vez: el botón la cambia desde otro hilo, y así el
     # `if` y el paquete usan el mismo valor aunque cambie en el medio.
     pausa = estado.pausa
-    # Envío al Arduino: solo si hay conexión y ya pasó INTERVALO_ENVIO desde
-    # el último paquete (así no se manda en todos los bloques).
-    # armar_paquete ya convierte a entero y limita entre 0 y ALTURA_MAXIMA,
-    # por eso se le pasa `mostradas` con decimales.
-    ahora = time.monotonic()
-    if conexion is not None and (ahora - ultimo_envio) >= configuracion.INTERVALO_ENVIO:
-        if pausa == 0:
-            # Funcionamiento normal: se envía siempre.
-            paquete = serie.armar_paquete(mostradas, modo, configuracion.SIN_NOTA, pausa, estado.pico)
-            serie.enviar(conexion, paquete)
+    # Paquete: como mucho uno cada INTERVALO_ENVIO (así no se arma en
+    # todos los bloques). Se arma aunque no haya Arduino, para el espejo
+    # de la OLED. armar_paquete ya convierte a entero y limita entre 0 y
+    # ALTURA_MAXIMA, por eso se le pasan las alturas con decimales.
+    if (ahora - ultimo_envio) >= configuracion.INTERVALO_ENVIO:
+        if pausa == 0 or not pausa_enviada:
+            # Normal: se envía siempre. Recién entrado en pausa: un último
+            # paquete (con pausa = 1) para que el Arduino congele la pantalla.
+            salida = numpy.maximum(mostradas, destello)
+            paquete = serie.armar_paquete(salida, modo, numero_nota, pausa, estado.pico)
+            enviar_paquete(paquete)
             ultimo_envio = ahora
-            envios += 1
-            pausa_enviada = False
-        elif not pausa_enviada:
-            # Recién se entró en pausa: un último paquete (con pausa = 1)
-            # para que el Arduino sepa que tiene que congelar la pantalla.
-            paquete = serie.armar_paquete(mostradas, modo, configuracion.SIN_NOTA, pausa, estado.pico)
-            serie.enviar(conexion, paquete)
-            ultimo_envio = ahora
-            envios += 1
-            pausa_enviada = True
+            pausa_enviada = pausa == 1
         # Si no: en pausa y el Arduino ya fue avisado, no se envía nada.
 
+    # Muestra las alturas en la consola uno de cada 5 bloques.
     contador += 1
     if contador % 5 == 0:
         print(f"Alturas: {mostradas.round().astype(int)}")
 
+def enviar_paquete(paquete):
+    """
+    Guarda el paquete para el espejo de la OLED y, si hay Arduino, lo
+    manda. Si el Arduino se desconecta en el medio, se sigue sin él.
+    """
+    global conexion, envios
+    estado.publicar_paquete(paquete, picos)
+    if conexion is None:
+        return
+    try:
+        serie.enviar(conexion, paquete)
+        envios += 1
+    except serial.SerialException:
+        print("Se desconectó el Arduino: sigo sin enviar")
+        conexion = None
+        estado.arduino_conectado = False
+
 def en_cada_vuelta():
+    """
+    La llama capturar_continuo(): lee los botones del Arduino y dibuja un cuadro cada
+    INTERVALO_DIBUJO.
+    """
     global ultimo_dibujo
     atender_botones()
     ahora = time.monotonic()
     if (ahora - ultimo_dibujo) >= configuracion.INTERVALO_DIBUJO:
         ultimo_dibujo = ahora
-        alturas = mostradas.copy()
-        return visualizador.dibujar(alturas, modo, configuracion.SIN_NOTA, estado.velocidad, estado.pausa)
+        return visualizador.dibujar()
     return True
 
 def atender_botones():
     """
     Lee un botón del Arduino (si llegó alguno) y lo aplica al estado.
 
-    La llama capturar_continuo() unas 100 veces por segundo desde el
-    hilo principal, no desde el callback. Sin Arduino no hace nada.
+    La llama en_cada_vuelta(). Sin Arduino no hace nada. Si el
+    Arduino se desconecta, se sigue sin él.
     """
+    global conexion
     if conexion is None:
         return
-    codigo = serie.leer_boton(conexion)
+    try:
+        codigo = serie.leer_boton(conexion)
+    except serial.SerialException:
+        print("Se desconectó el Arduino: sigo sin enviar")
+        conexion = None
+        estado.arduino_conectado = False
+        return
     if codigo is not None:
-        estado.aplicar_accion(codigo)
+        estado.aplicar_accion(codigo, "Arduino")
         print(f"Botón recibido: {codigo}. Estado nuevo: velocidad={estado.velocidad}, "
               f"pausa={estado.pausa}, pico={estado.pico}, golpe={estado.golpe}")
 
@@ -191,9 +248,17 @@ if __name__ == "__main__":
     # de cortar el programa.
     try:
         conexion = serie.conectar(configuracion.PUERTO_SERIE)
+        estado.arduino_conectado = True
         print("Arduino conectado")
     except serial.SerialException:
         print("No se encontró el Arduino: sigo sin enviar")
+        # El visualizador muestra "Arduino: desconectado" y el espejo de la
+        # OLED sigue andando con los paquetes que se habrían enviado.
+
+    # Blynk se entera de cada cambio, venga de donde venga.
+    if not blynk_cliente.iniciar():
+        print("Blynk sin conectar (falta implementar blynk_cliente.py)")
+    estado.suscriptores.append(blynk_cliente.avisar_cambio)
 
     # Se empieza a medir después de conectar(), para que los paquetes por
     # segundo no incluyan su espera de 2 s. Va antes del `try` para que

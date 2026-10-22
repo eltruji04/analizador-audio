@@ -168,6 +168,14 @@ def suavizar(mostradas, alturas, caida):
     mostradas[:] = nuevas
 
 
+def actualizar_picos(picos, mostradas):
+    """
+    Marca de pico de cada barra: sube enseguida con la barra y, cuando la
+    barra baja, se queda arriba y baja despacio.
+    """
+    picos[:] = numpy.maximum(mostradas, picos - configuracion.CAIDA_PICO)
+
+
 # Prueba con tonos: solo se ejecuta con `python pc/bandas.py`.
 if __name__ == "__main__":
     n = configuracion.TAMANO_VENTANA

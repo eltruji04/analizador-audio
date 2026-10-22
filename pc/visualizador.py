@@ -1,124 +1,196 @@
 """
-visualizador.py — Ventana de la compu que muestra lo mismo que la OLED.
+visualizador.py — Ventana de la compu: espectro, espejo de la OLED y panel de control.
 
-Dibuja las 16 barras a la izquierda y, en un panel a la derecha, la
-fuente (MIC/LINE), la nota, la velocidad de caída y si el Arduino está en
-pausa. Usa pygame (paquete pygame-ce).
+Abre la ventana, atiende el mouse y el teclado y, en cada cuadro, copia
+del estado los últimos datos del audio y le pide a dibujo.py que dibuje
+cada zona. Usa pygame.
+
+Los clics y las teclas cambian el estado con estado.cambiar(..., "compu"),
+la misma función que usan los botones del Arduino y Blynk.
 
 En macOS la ventana solo se puede manejar desde el hilo principal: por
 eso dibujar() se llama desde el bucle principal, nunca desde el callback
 de audio.
 """
 
-import pygame
-import numpy
+import collections
 import time
+import numpy
+import pygame
+import bandas
+import colores
 import configuracion
+import dibujo
+import estado
 
+# Teclas y la acción de cada una (todas con origen "compu").
+TECLAS = {
+    pygame.K_SPACE: lambda: estado.alternar("pausa", "compu"),
+    pygame.K_p: lambda: estado.alternar("pico", "compu"),
+    pygame.K_g: lambda: estado.alternar("golpe", "compu"),
+    pygame.K_a: lambda: estado.alternar("afinador", "compu"),
+    pygame.K_f: lambda: estado.siguiente("forma", "compu"),
+    pygame.K_c: lambda: estado.siguiente("color", "compu"),
+    pygame.K_v: lambda: estado.siguiente("velocidad", "compu"),
+}
 
-# Tamaño de la ventana, en píxeles. Las barras ocupan los primeros
-# ANCHO_BARRAS; el resto es el panel de la derecha.
-ANCHO = 960
-ALTO = 360
-ANCHO_BARRAS = 720
-COLOR_FONDO = (0, 0, 0)
-COLOR_BARRA = (255, 192, 203)
-COLOR_PANEL = (50, 50, 50)
-COLOR_TEXTO = (255, 255, 255)
-# Textos que se muestran según el número: la nota (12 = sin nota) y la
-# velocidad de caída (índice en configuracion.VELOCIDADES_CAIDA).
-NOMBRES_NOTAS = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B", "-"]
-NOMBRES_VELOCIDADES = ["lento", "normal", "rápido"]
-
-# Ventana y fuente de letra. Las crea iniciar(); empiezan vacías.
+# Ventana. La crea iniciar(); empieza vacía.
 pantalla = None
-fuente = None
+# Últimas alturas para el espectrograma: se agrega una cada
+# DURACION_HISTORIAL / LARGO_HISTORIAL segundos (~47 ms), así los 64
+# cuadros abarcan unos 3 s sin importar los FPS.
+historial = collections.deque(maxlen=configuracion.LARGO_HISTORIAL)
+ultimo_historial = 0    # momento en que se agregó el último cuadro al historial
+# Para medir los cuadros por segundo reales: cuántos se dibujaron desde
+# inicio_cuadros y el último valor medido (se actualiza una vez por segundo).
+cuadros = 0
+inicio_cuadros = 0
+fps = 0
+# Texto extra del pie (por ejemplo "datos simulados").
+aviso_pie = ""
 
 
 def iniciar():
-    """Abre la ventana y prepara la fuente de letra. Se llama una sola vez."""
-    # Sin `global`, las asignaciones crearían variables locales y
-    # dibujar() seguiría viendo pantalla y fuente en None.
-    global pantalla, fuente
+    """Abre la ventana y prepara las fuentes de letra. Se llama una sola vez."""
+    # Sin `global`, la asignación crearía una variable local y dibujar()
+    # seguiría viendo pantalla en None.
+    global pantalla
     pygame.init()
-    pantalla = pygame.display.set_mode((ANCHO, ALTO))
-    pygame.display.set_caption("Visualizador de Audio")
-    # None = la fuente que trae pygame; 32 = tamaño en píxeles.
-    fuente = pygame.font.Font(None, 32)
+    pantalla = pygame.display.set_mode((configuracion.ANCHO_VENTANA, configuracion.ALTO_VENTANA))
+    pygame.display.set_caption("Analizador de audio")
+    dibujo.cargar_fuentes()
 
 
-def dibujar(alturas, modo, nota, velocidad, pausa):
+def atender_eventos():
     """
-    Dibuja un cuadro: las barras con `alturas` (de 0 a ALTURA_MAXIMA) y
-    el panel con la fuente, la nota, la velocidad y la pausa.
-
-    Devuelve False si se cerró la ventana (con la ✕), True si no.
-    Los eventos se leen en cada cuadro: si no, macOS marca la ventana
-    como "no responde".
+    Lee los eventos de la ventana: clics en los botones y teclas. Devuelve
+    False si se cerró la ventana. Hay que llamarla en cada cuadro: si no,
+    macOS marca la ventana como "no responde".
     """
     for evento in pygame.event.get():
         if evento.type == pygame.QUIT:
             return False
+        if evento.type == pygame.MOUSEBUTTONDOWN and evento.button == 1:
+            # Los botones del último cuadro dibujado: el primero que contiene el mouse.
+            for rect, accion in dibujo.botones:
+                if rect.collidepoint(evento.pos):
+                    accion()
+                    break
+        elif evento.type == pygame.KEYDOWN and evento.key in TECLAS:
+            TECLAS[evento.key]()
+    return True
 
-    # Se borra el cuadro anterior: fondo negro y panel gris a la derecha.
-    pantalla.fill(COLOR_FONDO)
-    pygame.draw.rect(pantalla, COLOR_PANEL, (ANCHO_BARRAS, 0, ANCHO - ANCHO_BARRAS, ALTO))
 
-    # Barras: como en la OLED, y crece hacia abajo, así que cada barra
-    # empieza en ALTO − alto_px y llega hasta el piso de la ventana.
-    ancho_barra = ANCHO_BARRAS / configuracion.CANTIDAD_BARRAS
-    for i in range(len(alturas)):
-        alto_px = alturas[i] * ALTO / configuracion.ALTURA_MAXIMA
-        x = i * ancho_barra
-        y = ALTO - alto_px
-        # 2 px menos de ancho para que quede una separación entre barras.
-        pygame.draw.rect(pantalla, COLOR_BARRA, (x, y, ancho_barra - 2, alto_px))
+def dibujar():
+    """
+    Atiende los eventos y dibuja un cuadro con los últimos datos del estado.
 
-    # Panel derecho: cada texto alineado a la derecha, uno debajo del otro.
-    texto = fuente.render("MIC" if modo == configuracion.MODO_MIC else "LINE", True, COLOR_TEXTO)
-    pantalla.blit(texto, (ANCHO - texto.get_width() - 10, 10))
-    texto = fuente.render(NOMBRES_NOTAS[nota], True, COLOR_TEXTO)
-    pantalla.blit(texto, (ANCHO - texto.get_width() - 10, 40))
-    texto = fuente.render(NOMBRES_VELOCIDADES[velocidad], True, COLOR_TEXTO)
-    pantalla.blit(texto, (ANCHO - texto.get_width() - 10, 70))
-    if pausa:
-        texto = fuente.render("Arduino en pausa", True, COLOR_TEXTO)
-        pantalla.blit(texto, (ANCHO - texto.get_width() - 10, 100))
+    Devuelve False si se cerró la ventana (con la ✕), True si no.
+    """
+    global ultimo_historial, cuadros, inicio_cuadros, fps
+    if not atender_eventos():
+        return False
+
+    ahora = time.monotonic()
+    # Se toma el diccionario una sola vez: el callback lo reemplaza entero.
+    datos = estado.audio
+    # Historial del espectrograma: un cuadro cada DURACION_HISTORIAL / LARGO_HISTORIAL s.
+    if ahora - ultimo_historial >= configuracion.DURACION_HISTORIAL / configuracion.LARGO_HISTORIAL:
+        historial.append(datos["alturas"])
+        ultimo_historial = ahora
+
+    pantalla.fill(colores.FONDO)
+    # Se vuelven a anotar en cada cuadro, al dibujar el panel.
+    dibujo.botones.clear()
+    dibujo.encabezado(pantalla)
+    dibujo.espectro(pantalla, datos, historial, ahora)
+    dibujo.espejo_oled(pantalla)
+    dibujo.tarjeta_nota(pantalla, datos)
+    dibujo.panel(pantalla)
+
+    # Cada 1 s se calculan los FPS reales y se vuelve a contar.
+    cuadros += 1
+    if ahora - inicio_cuadros >= 1:
+        fps = cuadros / (ahora - inicio_cuadros)
+        cuadros = 0
+        inicio_cuadros = ahora
+    dibujo.pie(pantalla, f"{fps:.0f} FPS" + (f" · {aviso_pie}" if aviso_pie else ""))
 
     # Hasta acá todo se dibujó en memoria: flip() lo muestra en la ventana.
     pygame.display.flip()
     return True
+
 
 def cerrar():
     """Cierra la ventana y libera pygame."""
     pygame.quit()
 
 
-# Prueba sin audio: solo se ejecuta con `python pc/visualizador.py`.
-# Barras inventadas que se mueven como ondas y, cada 2 segundos, cambian
-# la fuente, la nota, la velocidad y la pausa, para ver todos los textos
-# del panel. Dura 12 segundos o hasta que se cierra la ventana.
+# --- Prueba con datos simulados (sin audio ni Arduino) ------------------------
+
+def simular(ahora, dt, mostradas, destello, picos, ultimo_golpe):
+    """
+    Inventa los datos de un cuadro como si vinieran del audio: barras que
+    se mueven como ondas, un golpe cada 0,5 s (120 BPM), una nota distinta
+    cada 2 s y un desvío en cents que oscila. Usa `inicio`, el momento
+    en que empezó la prueba. Devuelve el momento del último golpe.
+    """
+    t = ahora - inicio
+    posiciones = numpy.arange(configuracion.CANTIDAD_BARRAS)
+    alturas = 14 + 10 * numpy.sin(2.2 * t - posiciones * 0.5) + 6 * numpy.sin(5.3 * t + posiciones)
+    alturas = numpy.clip(alturas + numpy.random.uniform(-2, 2, len(alturas)), 0, configuracion.ALTURA_MAXIMA)
+
+    # La caída está pensada por bloque de audio (~21 ms): se ajusta a la duración del cuadro.
+    bloques = dt / (configuracion.TAMANO_BLOQUE / configuracion.FRECUENCIA_MUESTREO)
+    caida = configuracion.VELOCIDADES_CAIDA[estado.velocidad] * bloques
+    bandas.suavizar(mostradas, alturas, caida)
+    bandas.suavizar(destello, numpy.zeros(len(destello)), caida)
+    for _ in range(max(1, round(bloques))):
+        bandas.actualizar_picos(picos, mostradas)
+
+    if ahora - ultimo_golpe >= 0.5:
+        ultimo_golpe = ahora
+        if estado.golpe:
+            destello[configuracion.BARRAS_GOLPE] = configuracion.ALTURA_MAXIMA
+    # Como en principal.py: el golpe solo se marca con el efecto activo.
+    momento_golpe = ultimo_golpe if estado.golpe else None
+
+    nota = int(t // 2) % 12
+    cents = 20 * numpy.sin(t * 1.3)
+    # Octava 3: midi de C3 = 48.
+    frecuencia = 440 * 2 ** ((48 + nota - 69 + cents / 100) / 12)
+    estado.publicar_audio(mostradas, destello, picos, nota, frecuencia, cents, momento_golpe)
+    return ultimo_golpe
+
+
 if __name__ == "__main__":
+    # Solo se ejecuta con `python pc/visualizador.py`: la ventana completa
+    # con datos inventados, para probar el dibujo y el panel sin audio.
+    # Se cierra con la ✕.
+    import serie
     iniciar()
-    print("Prueba del visualizador: se cierra sola en 12 s o con la ✕ de la ventana")
-    inicio = time.monotonic()
-    while time.monotonic() - inicio < 12:
-        t = time.monotonic() - inicio
-        # Una onda que recorre las barras: cada barra va un poco atrasada
-        # respecto de la anterior. Queda entre 1 y 31 (nunca vacía ni llena).
-        posiciones = numpy.arange(configuracion.CANTIDAD_BARRAS)
-        alturas = 16 + 15 * numpy.sin(3 * t - posiciones * 0.5)
-
-        # Cada 2 s cambia el "paso" y, con él, lo que muestra el panel.
-        paso = int(t // 2)
-        modo = paso % 2                               # MIC, LINE, MIC, …
-        nota = paso % len(NOMBRES_NOTAS)              # C, C#, D, … ("-" al final)
-        velocidad = paso % len(configuracion.VELOCIDADES_CAIDA)  # 0, 1, 2, 0, …
-        pausa = 1 if paso % 4 == 3 else 0             # pausa de 2 s cada 8 s
-
-        if not dibujar(alturas, modo, nota, velocidad, pausa):
-            print("Ventana cerrada")
+    aviso_pie = "datos simulados"
+    print("Prueba del visualizador con datos simulados: se cierra con la ✕ de la ventana")
+    reloj = pygame.time.Clock()
+    mostradas = numpy.zeros(configuracion.CANTIDAD_BARRAS)
+    destello = numpy.zeros(configuracion.CANTIDAD_BARRAS)
+    picos = numpy.zeros(configuracion.CANTIDAD_BARRAS)
+    inicio = time.monotonic()   # la usa simular() para el tiempo de la prueba
+    anterior = inicio           # momento del cuadro anterior, para saber cuánto duró
+    ultimo_golpe = 0            # momento del último golpe inventado
+    pausa_enviada = False       # como en principal.py: el paquete de pausa sale una sola vez
+    while True:
+        ahora = time.monotonic()
+        ultimo_golpe = simular(ahora, ahora - anterior, mostradas, destello, picos, ultimo_golpe)
+        anterior = ahora
+        # Mismo criterio que principal.py: en pausa, un último paquete y nada más.
+        if not estado.pausa or not pausa_enviada:
+            salida = numpy.maximum(mostradas, destello)
+            paquete = serie.armar_paquete(salida, estado.fuente, estado.audio["nota"], estado.pausa, estado.pico)
+            estado.publicar_paquete(paquete, picos)
+            pausa_enviada = bool(estado.pausa)
+        if not dibujar():
             break
-        time.sleep(configuracion.INTERVALO_DIBUJO)
+        # Espera lo que falte para dibujar unos 30 cuadros por segundo.
+        reloj.tick(1 / configuracion.INTERVALO_DIBUJO)
     cerrar()
-

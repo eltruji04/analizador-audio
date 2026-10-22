@@ -53,8 +53,9 @@ def nivel_rms(audio):
 def al_recibir_bloque(bloque, cantidad_muestras, tiempo, estado):
     """
     Función que llama sounddevice cada vez que hay un bloque de audio listo
-    (callback).
- 
+    (callback). Es solo para la prueba de este archivo: el programa usa
+    principal.al_recibir_bloque().
+
     Muestra el nivel del bloque como una barra de '#'.
     """
     if estado: 
@@ -69,20 +70,22 @@ def capturar_continuo(numero_dispositivo, procesar_bloque, en_cada_vuelta=None):
     Captura audio de forma continua desde el dispositivo indicado.
 
     El audio llega en bloques y cada bloque se pasa a `procesar_bloque`,
-    una función que recibe (bloque, cantidad_muestras, tiempo, estado)
-    y que llama sounddevice cada vez que hay un bloque listo.
+    una función que recibe (bloque, cantidad_muestras, tiempo, aviso)
+    y que llama sounddevice cada vez que hay un bloque listo. Corre en un
+    hilo aparte.
 
     `en_cada_vuelta` (opcional) es una función sin parámetros que se llama
     unas 100 veces por segundo desde el hilo principal, no desde el
     callback. Sirve para lo que no puede ir en el callback, como leer los
     botones del Arduino.
 
-    No termina nunca: se sale con Ctrl+C (KeyboardInterrupt), y al salir
-    del `with` el stream se cierra.
+    Termina cuando en_cada_vuelta() devuelve False (por ejemplo, porque se
+    cerró la ventana) o con Ctrl+C (KeyboardInterrupt). Al salir del
+    `with`, el stream se cierra.
     """
     info = sounddevice.query_devices(numero_dispositivo)
     canales = info['max_input_channels']
-    # El flujo queda abierto mientras se está dentro del `with`
+    # El flujo queda abierto mientras se está dentro del `with`.
     with sounddevice.InputStream(
         device=numero_dispositivo, 
         channels=canales, 

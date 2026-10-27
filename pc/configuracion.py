@@ -24,7 +24,7 @@ BANDAS = [(40, 60), (60, 90), (90, 130), (130, 190),
     (1950, 2850), (2850, 4200), (4200, 6250), (6250, 9200), (9200, 13500), (13500, 20000)]
 
 # --- Puerto serie ---
-PUERTO_SERIE = "/dev/cu.usbmodem11401" # ajustar según el puerto al que esté conectado el Arduino
+PUERTO_SERIE = "/dev/cu.usbmodem11301" # ajustar según el puerto al que esté conectado el Arduino
 VELOCIDAD_SERIE = 115200               # baudios; tiene que coincidir con Serial.begin() del Arduino
 
 # --- Paquete al Arduino (ver docs/protocolo_serie.md) ---

@@ -132,7 +132,6 @@ void dibujarPantalla() {
   display.setTextSize(1);
   display.setTextColor(SSD1306_WHITE);
   display.setCursor(TEXTO_X, TEXTO_Y);
-  display.print(F("----"));
   if (modo == 1) {
     display.print(F("LINE"));
   } else if (modo == 0) {

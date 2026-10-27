@@ -99,3 +99,6 @@ BANDAS_DETECCION_GOLPE = [0, 1]   # bandas graves que se miran para detectar el 
 GOLPE_SUBIDA_DB = 6.0             # dB que tienen que subir los graves respecto del bloque anterior
 GOLPE_DISTANCIA_TECHO_DB = 15.0   # los graves tienen que quedar a menos de esto de su techo
 GOLPE_ESPERA = 0.15               # segundos sin aceptar otro golpe después de uno
+
+RECALIBRAR_MARGEN_DB = 10.0
+RECALIBRAR_RANGO_DB = 25.0

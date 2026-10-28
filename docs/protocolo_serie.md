@@ -36,7 +36,7 @@ Al entrar en pausa, la compu manda **un último paquete con pausa = 1** y despu�
 
 ### Fuente de audio (byte 17)
 
-La OLED muestra `MIC` o `LINE` según este byte, y los dos LEDs de la caja de control se alternan con él: siempre hay uno solo encendido. Hoy la fuente se elige antes de iniciar (`FUENTE_AUDIO` en `configuracion.py`), así que el byte no cambia durante la ejecución **[A CONFIRMAR: cambio en vivo]**.
+La OLED muestra `MIC` o `LINE` según este byte, y los dos LEDs de la caja de control se alternan con él: siempre hay uno solo encendido. Hoy la fuente se elige antes de iniciar (`FUENTE_AUDIO` en `configuracion.py`), así que el byte no cambia durante la ejecución.
 
 ### Marca de pico (byte 20)
 
@@ -54,8 +54,6 @@ La compu tiene cuatro formas (`barras`, `centro`, `onda` y `espectrograma`), per
 | `espectrograma` | `0` | Barras desde el piso |
 
 Las alturas son las mismas en las dos formas: solo cambia desde dónde se dibujan. Con la marca de pico en centro se dibujan dos líneas, una arriba y otra abajo de la barra. El espejo de la OLED en el visualizador (`dibujo.dibujar_oled`) lee este mismo byte.
-
-Un Arduino con el código anterior (que espera 21 bytes) sigue funcionando: lee los 20 bytes que le interesan e ignora el último hasta el próximo `255`, así que siempre muestra barras. Es lo que pasa hoy (ver [Estado del firmware](#estado-del-firmware)).
 
 ### Lo que no va en el paquete
 
@@ -94,19 +92,6 @@ Cada vez que se **aprieta** un botón (no mientras está apretado, y con antirre
 
 - El byte dice **qué botón se apretó**, no el estado nuevo. La compu es la única dueña del estado: cambia el valor (`estado.aplicar_accion` en `pc/estado.py`) y lo refleja en el paquete, en el visualizador y en Blynk. El Arduino no cambia nada por su cuenta.
 - Blynk pide los mismos cambios con los mismos códigos.
-- El Arduino tiene que usar `Serial.write(codigo)`, nunca `Serial.print`: `print` manda el carácter `'1'`, que es el byte `49`. Por lo mismo, no puede mandar texto de depuración por el puerto.
+- El Arduino tiene que usar `Serial.write(codigo)`, nunca `Serial.print`: `print` manda el carácter `'1'`, que es el byte `49`.
 - Los botones siguen funcionando durante la pausa: este canal es independiente del paquete.
 - La compu lee un byte cada ~10 ms con `leer_boton` (`pc/serie.py`), sin quedarse esperando.
-
-## Estado del firmware
-
-El protocolo **oficial es el de 22 bytes** de este documento, y es el que manda la compu. El firmware actual ([`botones_oled.ino`](../arduino/botones_oled/botones_oled.ino)) todavía no lo sigue completo:
-
-| Parte | Estado en el firmware |
-|---|---|
-| Bytes 0–20 (inicio, alturas, fuente, nota, pausa, pico) | ✅ Los lee y los usa |
-| Byte 21 (forma en la OLED) | ⬜ Pendiente: lee solo 20 bytes después del `255`, ignora la forma y siempre dibuja barras desde el piso |
-| LEDs de la fuente (byte 17) | ⬜ Pendiente: todavía no enciende los LEDs |
-| Botones (Arduino → computadora) | ✅ Manda los códigos 1 a 4 con `Serial.write` |
-
-Para ponerlo al día: guardar 21 bytes después del `255` (`datos[21]`, contar hasta 21), leer la forma en `datos[20]`, dibujar las barras y los picos desde el centro cuando valga `1` (como `dibujo.dibujar_oled`) y encender el LED que corresponda al byte 17.

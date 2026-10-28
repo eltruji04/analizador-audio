@@ -2,13 +2,17 @@
 
 Guía detallada para preparar el entorno en macOS y Linux. El resumen está en el [README](../README.md).
 
+> Los puntos marcados **[SIN VERIFICAR]** todavía no se probaron, y los marcados **[A CONFIRMAR]** son decisiones pendientes.
+
 ## Contenido
 
 - [Requisitos](#requisitos)
-- [macOS (Apple Silicon)](#macos-apple-silicon)
-- [Linux](#linux)
+- [Instalación en macOS (Apple Silicon)](#instalación-en-macos-apple-silicon)
+- [Instalación en Linux](#instalación-en-linux)
 - [Comprobación del entorno](#comprobación-del-entorno)
 - [Configuración](#configuración)
+  - [Programa de la computadora](#programa-de-la-computadora)
+  - [Firmware del Arduino](#firmware-del-arduino)
 - [Pruebas por módulo](#pruebas-por-módulo)
 
 ---
@@ -17,12 +21,14 @@ Guía detallada para preparar el entorno en macOS y Linux. El resumen está en e
 
 - **Python:** desarrollado con 3.14. No usar funciones exclusivas de versiones recientes hasta definirlo.
 - **Git** y una cuenta de GitHub con acceso al repositorio.
-- **Arduino IDE** para cargar el código en el Uno.
+- **Arduino IDE** para cargar el firmware en el Uno, con las librerías *Adafruit SSD1306* y *Adafruit GFX Library* (ver [Firmware del Arduino](#firmware-del-arduino)).
 - **VS Code** (recomendado) con la extensión *Python* de Microsoft.
+
+Las dependencias de Python están en [`requirements.txt`](../requirements.txt): `numpy`, `sounddevice`, `pyserial`, `pygame-ce` y `requests` (más las que estas usan).
 
 ---
 
-## macOS (Apple Silicon)
+## Instalación en macOS (Apple Silicon)
 
 Probado en macOS 26.6 con Python 3.14.7 de Homebrew.
 
@@ -58,10 +64,11 @@ Hay que **reiniciar** la Mac después de instalarlo. Luego:
 - Con el dispositivo de salida múltiple, el volumen se controla desde la app de música, no con las teclas de la Mac.
 - Con auriculares Bluetooth puede haber retardo o cortes; para pruebas, mejor usar los parlantes.
 - **No usar el micrófono de auriculares Bluetooth** para el modo micrófono: al usarlo, macOS baja la calidad del audio y se pierden las bandas agudas. Usar el **Micrófono de MacBook Air**.
+- Si el puerto serie se congela o se corta, probar primero **otro puerto USB** (o sin hub) antes de buscar el error en el código.
 
 ---
 
-## Linux
+## Instalación en Linux
 
 **[SIN VERIFICAR — todo este apartado está pendiente de probar en las computadoras del equipo.]**
 
@@ -108,7 +115,7 @@ En Linux no se usa BlackHole. El audio del sistema suele estar disponible como u
 pactl list short sources
 ```
 
-Cómo elegir esa fuente desde `sounddevice` queda por probar.
+Cómo elegir esa fuente desde `sounddevice` (qué texto poner en `DISPOSITIVO_SISTEMA`) queda por probar.
 
 ---
 
@@ -117,33 +124,59 @@ Cómo elegir esa fuente desde `sounddevice` queda por probar.
 Con el entorno virtual activado:
 
 ```bash
-python -c "import numpy, sounddevice, serial, requests; print('ok')"
+python -c "import numpy, sounddevice, serial, requests, pygame; print('ok')"
 python -m sounddevice                # lista los dispositivos de audio
 python -m serial.tools.list_ports    # lista los puertos serie
 ```
 
-- La primera línea tiene que imprimir `ok`.
+- La primera línea tiene que imprimir `ok` (pygame además imprime su versión).
 - En macOS, la lista de audio tiene que incluir **BlackHole 2ch** y el **dispositivo de salida múltiple**.
 - Con el Arduino conectado, debería aparecer un puerto nuevo. Nombres probables **[SIN VERIFICAR]**:
   - macOS: `/dev/cu.usbmodem…` (Uno original) o `/dev/cu.usbserial…` (clon con chip CH340).
   - Linux: `/dev/ttyACM0` (Uno original) o `/dev/ttyUSB0` (clon).
 
-**Importante:** los números de los dispositivos de audio cambian cuando se conecta o desconecta algo. El programa no debe elegir el dispositivo por su número.
+**Importante:** los números de los dispositivos de audio cambian cuando se conecta o desconecta algo. Por eso el programa los busca por su nombre, nunca por su número.
 
 ---
 
 ## Configuración
+
+### Programa de la computadora
 
 Todos los parámetros están en [`pc/configuracion.py`](../pc/configuracion.py). Los que más probablemente haya que cambiar:
 
 | Parámetro | Para qué |
 |---|---|
 | `PUERTO_SERIE` | Puerto del Arduino. Cambia según la computadora y el puerto USB: verlo con `python -m serial.tools.list_ports`. |
+| `FUENTE_AUDIO` | Fuente que se usa al iniciar: `MODO_LINE` (audio del sistema) o `MODO_MIC` (micrófono). Hoy no se puede cambiar con el programa andando. |
 | `DISPOSITIVO_SISTEMA`, `DISPOSITIVO_MICROFONO` | Parte del nombre de los dispositivos de audio (se buscan por nombre, no por número). |
+
+Para ajustar el comportamiento:
+
+| Parámetro | Para qué |
+|---|---|
 | `BANDAS` | Límites en Hz de las 16 bandas. |
-| `INTERVALO_ENVIO` | Tiempo mínimo entre paquetes al Arduino. |
-| `CAIDA_BARRAS` | Qué tan rápido bajan las barras. |
-| `RANGO_MINIMO_DB`, `RANGO_MAXIMO_DB`, `TECHO_MINIMO_DB`, `VELOCIDAD_DB`, `DISTANCIA_MAXIMA_DB` | Calibración automática (explicados en `bandas.actualizar_niveles`). |
+| `INTERVALO_ENVIO` | Tiempo mínimo entre paquetes al Arduino (1/30 s). |
+| `VELOCIDADES_CAIDA`, `VELOCIDAD_INICIAL` | Píxeles por bloque que bajan las barras en cada velocidad (lenta, normal, rápida) y con cuál arranca. |
+| `CAIDA_PICO` | Qué tan rápido baja la marca de pico. |
+| `PROMEDIO_DB` | Cuánto se promedia el nivel de cada banda entre bloques (0 = sin promedio). |
+| `RANGO_MINIMO_DB`, `RANGO_MAXIMO_DB`, `TECHO_MINIMO_DB`, `TECHO_INICIAL_DB`, `DISTANCIA_MAXIMA_DB` | Límites de la calibración automática (explicados en `bandas.actualizar_niveles`). |
+| `VELOCIDAD_TECHO_DB`, `VELOCIDAD_PISO_BAJA_DB`, `VELOCIDAD_PISO_SUBE_DB` | Qué tan rápido se mueven el techo y el piso de cada banda. |
+| `RECALIBRAR_MARGEN_DB`, `RECALIBRAR_RANGO_DB` | Dónde quedan el techo y el piso al recalibrar con la tecla `R`. |
+| `BANDAS_DETECCION_GOLPE`, `GOLPE_SUBIDA_DB`, `GOLPE_DISTANCIA_TECHO_DB`, `GOLPE_ESPERA` | Detección de golpe (explicados en `golpe.py`). **[SIN VERIFICAR]** con golpes reales. |
+| `BARRAS_GOLPE` | Barras que se llenan con cada golpe (1, 2, 15 y 16). |
+| `COLORES_FIJOS` | Muestras del modo de color fijo. |
+
+### Firmware del Arduino
+
+1. En el Arduino IDE, **Herramientas → Administrar bibliotecas**, instalar **Adafruit SSD1306** (acepta instalar también **Adafruit GFX Library**).
+2. Abrir [`arduino/botones_oled/botones_oled.ino`](../arduino/botones_oled/botones_oled.ino).
+3. Elegir la placa **Arduino Uno** y su puerto, y **cargar**.
+4. **Cerrar el Monitor Serie** antes de correr `principal.py`: si está abierto, ocupa el puerto.
+
+`PRUEBA_TEXTO` en el `.ino` tiene que valer `0` para usarlo con la computadora. Con `1` el Arduino lee los paquetes como texto escrito en el Monitor Serie (para probar la pantalla sin Python).
+
+> El firmware actual todavía usa el paquete viejo de 21 bytes: ignora el byte 21 (forma) y siempre dibuja barras desde el piso. Ver [Protocolo serie → Estado del firmware](protocolo_serie.md#estado-del-firmware).
 
 ---
 
@@ -153,6 +186,9 @@ Cada módulo se puede correr por separado para probar una parte:
 
 | Comando | Qué hace |
 |---|---|
-| `python pc/captura.py` | Muestra el nivel del audio como una barra de `#` en la terminal. |
+| `python pc/captura.py` | Muestra el nivel del audio del sistema como una barra de `#` en la terminal. |
 | `python pc/bandas.py` | Prueba con tonos: cada tono tiene que caer en su banda (16 de 16), y muestra cuántos valores del espectro tiene cada banda con 1024 y 4096 muestras. |
-| `python pc/serie.py` | Arma un paquete de prueba (sin Arduino) y muestra sus bytes. |
+| `python pc/serie.py` | Arma paquetes de prueba (sin Arduino), comprueba los errores por valores inválidos y prueba la lectura de botones con un puerto falso. |
+| `python pc/estado.py` | Prueba los cambios de estado: códigos de botón, rotación de formas, valores inválidos y avisos a los suscriptores. |
+| `python pc/golpe.py` | Prueba el detector de golpes con casos inventados; tiene que terminar con `Errores: 0 de 12`. |
+| `python pc/visualizador.py` | Abre la ventana con datos simulados (sin audio ni Arduino): barras en movimiento, un golpe cada 0,5 s y una nota distinta cada 2 s. Se cierra con la ✕. |

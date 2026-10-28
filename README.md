@@ -5,46 +5,62 @@
 ![Blynk](https://img.shields.io/badge/App-Blynk-23C48E)
 ![Estado](https://img.shields.io/badge/estado-en%20desarrollo-orange)
 
-Sistema que traduce la música en luz. Un programa en Python analiza en tiempo real el audio de la computadora y un **Arduino Uno** lo muestra en **una pantalla OLED**, con varios modos de visualización controlables desde una app de **Blynk** y desde una caja de controles físicos.
+Sistema que traduce la música en luz: la computadora analiza el audio en tiempo real y un **Arduino Uno** lo muestra en una **pantalla OLED**.
 
 Proyecto final del **Taller de Introducción a la Ingeniería Eléctrica (TallerInE Robótico)** — IIE, Facultad de Ingeniería, Universidad de la República.
 
+## Contenido
+
+- [Descripción](#descripción)
+- [Construido con](#construido-con)
+- [Inicio rápido](#inicio-rápido)
+- [Uso](#uso)
+- [Roadmap](#roadmap)
+- [Estructura del repositorio](#estructura-del-repositorio)
+- [Documentación](#documentación)
+- [Hardware](#hardware)
+- [Equipo](#equipo)
+
 ---
 
-## Características
+![Analizador funcionando](docs/img/analizador.gif)
 
-- **Análisis de espectro en tiempo real:** FFT de 16 bandas entre 40 Hz y 20 kHz, con calibración automática para que se vea bien con música fuerte o suave.
+## Descripción
+
+Un programa en Python captura el audio de la computadora (el micrófono o lo que suena en ella), lo divide en 16 bandas de frecuencia y le manda las alturas de las barras a un Arduino Uno, que las dibuja en una OLED de 128×32. Los modos de visualización se controlan desde la ventana de la computadora, desde una caja con botones físicos y, más adelante, desde una app de **Blynk**.
+
+El objetivo del proyecto:
+
+> Desarrollar un sistema basado en Arduino Uno que, a partir del análisis en tiempo real de la música realizado en una computadora, la traduzca en patrones de luz, con varios modos de visualización seleccionables desde una aplicación que respondan a distintas características del sonido, como el volumen por banda de frecuencia o la nota o tonalidad predominante.
+
+**Características:**
+
+- **Análisis de espectro en tiempo real:** FFT de 16 bandas entre 40 Hz y 20 kHz, con calibración automática para que se vea bien con música fuerte o suave, y recalibración manual.
 - **Dos fuentes de audio:** el micrófono o lo que suena en la propia computadora.
-- **Modos combinables:** forma (barras o desde el centro) × color (fijo, arcoíris o según la nota que suena).
-- **Efectos:** marca de pico y destello con cada golpe del bombo.
-- **Control desde tres lugares sincronizados:** app de Blynk, botones, y programa en la computadora.
-- **Visualizador en pantalla de computadora** muestra las bandas de forma continua y con alta resolución.
+- **Modos combinables:** forma (barras, desde el centro, onda o espectrograma) × color (fijo, arcoíris o según la nota que suena). La OLED muestra barras o desde el centro; con onda y espectrograma, muestra barras.
+- **Efectos:** marca de pico, destello con cada golpe del bombo y tres velocidades de caída de las barras.
+- **Control desde tres lugares sincronizados:** la ventana de la computadora, los botones de la caja y la app de Blynk. La computadora es la única dueña del estado.
+- **Visualizador en la computadora:** el espectro en alta resolución, un espejo de la OLED y un panel de control.
+- **Funciona sin Arduino:** si no está conectado (o se desconecta), el análisis y el visualizador siguen andando.
 
-## Arquitectura
+## Construido con
 
-```
-Audio ──► Computadora (Python)              USB serie              Arduino Uno
-          FFT · golpe · nota       ◄──────────────────────►        OLED 128x32
-          visualizador · Blynk                                       botones 
-```
-
-Todo el procesamiento de audio se hace en la computadora; el Arduino solo dibuja y lee los controles. Más detalles en [docs/diseno.md](docs/diseno.md).
-
-## Estado del proyecto
-
-| Componente | Estado |
+| Parte | Tecnología |
 |---|---|
-| Captura de audio y análisis por bandas | ✅ Funciona |
-| Envío de datos al Arduino | ✅ Funciona |
-| Selección micrófono / audio del sistema | 🚧 En desarrollo |
-| Detección de golpe y estimación de nota | 🚧 En desarrollo |
-| Visualizador en pantalla | 🚧 En desarrollo |
-| App de Blynk | 🚧 En desarrollo |
-| Firmware del Arduino | 🚧 En desarrollo |
+| Programa de la computadora | **Python 3.14** con `numpy` (FFT), `sounddevice` (captura de audio), `pyserial` (puerto serie), `pygame-ce` (visualizador) y `requests` (Blynk) |
+| Firmware | **Arduino (C++)** con las librerías *Adafruit SSD1306* y *Adafruit GFX* |
+| App | **Blynk** |
+| Audio del sistema | **BlackHole** en macOS; fuente "monitor" de PulseAudio/PipeWire en Linux |
 
 ## Inicio rápido
 
-**Requisitos:** Python 3.14, macOS o Linux, Arduino IDE y un Arduino Uno (opcional para probar el análisis).
+**Requisitos previos:**
+
+- macOS o Linux con **Python 3.14** y **Git**.
+- **Arduino IDE** y un **Arduino Uno** con la OLED (opcional: sin Arduino se puede probar el análisis y el visualizador).
+- En macOS, **BlackHole** para analizar el audio del sistema.
+
+**Instalación:**
 
 ```bash
 git clone https://github.com/eltruji04/analizador-audio.git
@@ -54,7 +70,7 @@ source .venv/bin/activate
 pip install -r requirements.txt
 ```
 
-Para analizar el audio del sistema en macOS hace falta **BlackHole**, y en Linux algunas dependencias extra. Los pasos completos están en [docs/instalacion.md](docs/instalacion.md).
+Después hay que cargar el firmware en el Arduino y ajustar el puerto serie y los dispositivos de audio en [`pc/configuracion.py`](pc/configuracion.py). Los pasos completos (BlackHole, Linux, firmware y comprobaciones) están en [docs/instalacion.md](docs/instalacion.md).
 
 ## Uso
 
@@ -63,28 +79,93 @@ source .venv/bin/activate
 python pc/principal.py
 ```
 
-El programa empieza a analizar el audio y, si encuentra el Arduino, le manda los datos; si no, sigue funcionando sin él. Se detiene con **Ctrl+C**.
+Se abre la ventana del visualizador y empieza el análisis. Si encuentra el Arduino, le manda los datos; si no, sigue funcionando sin él. Se cierra con la ✕ de la ventana o con **Ctrl+C** en la terminal.
 
 > El Monitor Serie del Arduino IDE tiene que estar cerrado: si no, ocupa el puerto.
 
-Los parámetros (puerto serie, dispositivos de audio, bandas, calibración) están en [`pc/configuracion.py`](pc/configuracion.py). Ver [Configuración](docs/instalacion.md#configuración).
+**Desde la ventana** (con el teclado o haciendo clic en el panel de la derecha):
+
+| Tecla | Acción |
+|---|---|
+| `Espacio` | Pausa: deja de enviar al Arduino (la compu sigue analizando) |
+| `P` | Marca de pico |
+| `G` | Efecto de golpe |
+| `V` | Velocidad de caída: lenta → normal → rápida |
+| `F` | Forma: barras → desde el centro → onda → espectrograma |
+| `C` | Color: fijo → arcoíris → por nota |
+| `A` | Afinador en la tarjeta de nota |
+| `R` | Recalibrar piso y techo desde lo que suena ahora |
+
+El color fijo se elige con las muestras del panel.
+
+**Desde la caja de control:**
+
+| Botón | Acción |
+|---|---|
+| 1 | Velocidad de caída |
+| 2 | Pausa |
+| 3 | Marca de pico |
+| 4 | Efecto de golpe |
+
+La fuente de audio (micrófono o sistema) se elige antes de iniciar con `FUENTE_AUDIO` en [`pc/configuracion.py`](pc/configuracion.py). Ahí están también el puerto serie, los dispositivos de audio y la calibración: ver [Configuración](docs/instalacion.md#configuración).
+
+## Roadmap
+
+**Hecho**
+
+- [x] Captura de audio del micrófono o del sistema (BlackHole), elegido por nombre de dispositivo
+- [x] FFT de 16 bandas con ventana deslizante de 4096 muestras
+- [x] Calibración automática por banda y recalibración manual (tecla `R`)
+- [x] Suavizado de barras con tres velocidades de caída y marca de pico
+- [x] Detección de golpe del bombo y destello en las barras 1, 2, 15 y 16
+- [x] Paquete serie de 22 bytes a la OLED y lectura de los 4 botones
+- [x] Estado único compartido entre la ventana, el Arduino y Blynk
+- [x] Visualizador: 4 formas, 3 modos de color, espejo de la OLED y panel de control
+- [x] Firmware: barras, marca de pico, MIC/LINE, nota y pausa en la OLED; botones con antirrebote
+- [x] El programa sigue funcionando sin Arduino o si se desconecta
+
+**Por hacer**
+
+- [ ] Estimación de la nota y afinador (`pc/nota.py`)
+- [ ] Conexión con Blynk y tablero de registro de uso (`pc/blynk_cliente.py`)
+- [ ] Firmware: leer el byte 21 del paquete y dibujar las barras desde el centro
+- [ ] Firmware: LEDs indicadores de la fuente de audio (micrófono / sistema)
+- [ ] Cambiar la fuente de audio en vivo (hoy se elige antes de iniciar)
+- [ ] Probar la detección de golpe con música real
+- [ ] Probar la instalación en Linux
+- [ ] Armar la caja de control
+- [ ] Medir el retardo entre el sonido y la pantalla
 
 ## Estructura del repositorio
 
 ```
 analizador-audio/
-├── pc/                 # Programa de la computadora (Python)
-├── arduino/            # Firmware del Arduino Uno
-├── docs/               # Documentación del proyecto
-└── requirements.txt    # Dependencias de Python
+├── pc/                         # Programa de la computadora (Python)
+│   ├── principal.py            # Punto de entrada: captura, análisis, envío y visualizador
+│   ├── configuracion.py        # Todos los parámetros del programa
+│   ├── estado.py               # Estado compartido (modos, pausa, pico…) y últimos resultados
+│   ├── captura.py              # Captura de audio con sounddevice
+│   ├── bandas.py               # FFT por bandas, calibración, suavizado y picos
+│   ├── golpe.py                # Detección de golpes del bombo
+│   ├── nota.py                 # Estimación de la nota (pendiente)
+│   ├── serie.py                # Paquete al Arduino y lectura de botones
+│   ├── blynk_cliente.py        # Conexión con Blynk (pendiente)
+│   ├── visualizador.py         # Ventana: eventos, teclas y bucle de dibujo
+│   ├── dibujo.py               # Dibujo de cada zona de la ventana
+│   └── colores.py              # Paleta y color de cada banda
+├── arduino/
+│   └── botones_oled/
+│       └── botones_oled.ino    # Firmware: OLED y botones
+├── docs/                       # Documentación del proyecto
+└── requirements.txt            # Dependencias de Python
 ```
 
 ## Documentación
 
 | Documento | Contenido |
 |---|---|
-| [Instalación y configuración](docs/instalacion.md) | Entorno en macOS y Linux, captura del audio del sistema, parámetros y pruebas |
-| [Diseño del sistema](docs/diseno.md) | Arquitectura, hardware, modos, Blynk, decisiones de diseño, calendario y riesgos |
+| [Instalación y configuración](docs/instalacion.md) | Entorno en macOS y Linux, captura del audio del sistema, firmware, parámetros y pruebas |
+| [Diseño del sistema](docs/diseno.md) | Arquitectura, hardware, modos, Blynk, visualizador y procesamiento de audio |
 | [Protocolo serie](docs/protocolo_serie.md) | Formato de los mensajes entre la computadora y el Arduino |
 | [Guía de Git](docs/guia_git.md) | Cómo trabaja el equipo con Git y GitHub |
 
@@ -93,15 +174,17 @@ analizador-audio/
 | Componente | Cantidad |
 |---|---|
 | Arduino Uno | 1 |
-| OLED 128x32 I2C | 1 |
+| OLED 128x32 I2C (SSD1306) | 1 |
 | Pulsadores | 4 |
 | LEDs indicadores con resistencia | 2 |
 | Caja de control | 1 |
+
+Conexiones y funciones en [Diseño del sistema → Hardware](docs/diseno.md#hardware).
 
 ## Equipo
 
 | Integrante | Área |
 |---|---|
 | Santiago Trujillo | Software en la computadora (Python) |
-| Lucía Hernández | Firmware del Arduino y protocolo serie y pantalla OLED|
+| Lucía Hernández | Firmware del Arduino, protocolo serie y pantalla OLED |
 | Benjamín Cabrera | Hardware, construcción y Blynk |

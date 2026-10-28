@@ -31,6 +31,8 @@ golpe = 0
 # 1 = la tarjeta de nota muestra el afinador (solo en la compu).
 afinador = 0
 
+forma_oled = 0
+
 forma = "barras"
 color = "nota"
 color_fijo = 0

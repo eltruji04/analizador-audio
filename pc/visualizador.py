@@ -187,7 +187,7 @@ if __name__ == "__main__":
         # Mismo criterio que principal.py: en pausa, un último paquete y nada más.
         if not estado.pausa or not pausa_enviada:
             salida = numpy.maximum(mostradas, destello)
-            paquete = serie.armar_paquete(salida, estado.fuente, estado.audio["nota"], estado.pausa, estado.pico)
+            paquete = serie.armar_paquete(salida, estado.fuente, estado.audio["nota"], estado.pausa, estado.pico, estado.forma_oled)
             estado.publicar_paquete(paquete, picos)
             pausa_enviada = bool(estado.pausa)
         if not dibujar():

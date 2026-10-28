@@ -45,6 +45,8 @@ RANGO_MINIMO_DB = 12.0       # distancia mínima entre piso y techo de una banda
 RANGO_MAXIMO_DB = 50.0       # distancia máxima entre piso y techo de una banda
 TECHO_MINIMO_DB = -70.0      # el techo nunca baja de acá (protege del silencio)
 VELOCIDAD_TECHO_DB = 0.005   # dB por bloque que baja el techo (~0,23 dB/s): casi fijo, así una parte suave se ve baja
+RECALIBRAR_MARGEN_DB = 10.0
+RECALIBRAR_RANGO_DB = 25.0
 # El piso se mueve despacio en las dos direcciones: así no persigue los
 # pozos del ruido y el ruido de fondo queda por debajo de él (barras quietas).
 VELOCIDAD_PISO_BAJA_DB = 0.02  # dB por bloque que baja el piso (~0,9 dB/s)
@@ -99,6 +101,3 @@ BANDAS_DETECCION_GOLPE = [0, 1]   # bandas graves que se miran para detectar el 
 GOLPE_SUBIDA_DB = 6.0             # dB que tienen que subir los graves respecto del bloque anterior
 GOLPE_DISTANCIA_TECHO_DB = 15.0   # los graves tienen que quedar a menos de esto de su techo
 GOLPE_ESPERA = 0.15               # segundos sin aceptar otro golpe después de uno
-
-RECALIBRAR_MARGEN_DB = 10.0
-RECALIBRAR_RANGO_DB = 25.0

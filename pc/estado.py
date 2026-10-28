@@ -48,6 +48,9 @@ ultimo_cambio = ("Inicio", None, time.monotonic())
 # Ahí se va a enganchar Blynk para enterarse de los cambios de los demás.
 suscriptores = []
 
+# True = se pidió recalibrar y el callback de audio todavía no lo atendió.
+pedido_recalibrar = False
+
 # Valores permitidos de cada campo que se puede cambiar.
 VALORES = {
     "velocidad": range(len(configuracion.VELOCIDADES_CAIDA)),
@@ -147,6 +150,13 @@ def aplicar_accion(codigo, origen="Arduino"):
         alternar("golpe", origen)
     else:
         print(f"código desconocido: {codigo}")
+
+
+def pedir_recalibracion(origen):
+    """Pide recalibrar piso y techo desde lo que suena ahora."""
+    global pedido_recalibrar, ultimo_cambio
+    pedido_recalibrar = True
+    ultimo_cambio = ("Recalibrando", origen, time.monotonic())
 
 
 def publicar_audio(alturas, destello, picos, nota, frecuencia, cents, momento_golpe):

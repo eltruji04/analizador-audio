@@ -557,7 +557,7 @@ def panel(superficie):
         botones.append((rect, lambda i=i: estado.cambiar("color_fijo", i, "compu")))
 
     y = seccion(superficie, y + 54, "Atajos de teclado")
-    for linea in ["Espacio pausa · P peak · G golpe", "A afinador · F forma · C color", "V velocidad de caída"]:
+    for linea in ["Espacio pausa · P peak · G golpe", "A afinador · F forma · C color", "V velocidad de caída · R recalibrar"]:
         texto(superficie, linea, "chica", colores.TEXTO_SECUNDARIO, (x, y))
         y += 20
 

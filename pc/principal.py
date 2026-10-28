@@ -137,6 +137,13 @@ def al_recibir_bloque(bloque, cantidad_muestras, tiempo, aviso):
     else:
         bandas.promediar(db_suave, db)
 
+    # Recalibración pedida con la tecla R
+    if estado.pedido_recalibrar:
+        techo[:] = db_suave + configuracion.RECALIBRAR_MARGEN_DB
+        piso[:]  = techo - configuracion.RECALIBRAR_RANGO_DB
+        picos[:] = 0
+        estado.pedido_recalibrar = False
+
     # Calibración automática: cada banda ajusta su piso y su techo según
     # lo que está sonando, así se ve bien con música fuerte o suave.
     bandas.actualizar_niveles(piso, techo, db_suave)
@@ -199,7 +206,7 @@ def enviar_paquete(paquete):
     try:
         serie.enviar(conexion, paquete)
         envios += 1
-    except serial.SerialException:
+    except OSError:
         print("Se desconectó el Arduino: sigo sin enviar")
         conexion = None
         estado.arduino_conectado = False
@@ -229,7 +236,7 @@ def atender_botones():
         return
     try:
         codigo = serie.leer_boton(conexion)
-    except serial.SerialException:
+    except OSError:
         print("Se desconectó el Arduino: sigo sin enviar")
         conexion = None
         estado.arduino_conectado = False

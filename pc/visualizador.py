@@ -32,6 +32,7 @@ TECLAS = {
     pygame.K_f: lambda: estado.siguiente("forma", "compu"),
     pygame.K_c: lambda: estado.siguiente("color", "compu"),
     pygame.K_v: lambda: estado.siguiente("velocidad", "compu"),
+    pygame.K_r: lambda: estado.pedir_recalibracion("compu"),
 }
 
 # Ventana. La crea iniciar(); empieza vacía.

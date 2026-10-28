@@ -2,8 +2,6 @@
 
 Explica cómo está organizado el código, qué hacen las funciones más importantes y por qué están hechas así. Para el diseño general, ver [diseno.md](diseno.md); para el formato de los mensajes con el Arduino, [protocolo_serie.md](protocolo_serie.md).
 
-> Los puntos marcados **[SIN VERIFICAR]** todavía no se probaron, y los marcados **[A CONFIRMAR]** son decisiones pendientes.
-
 ## Contenido
 
 - [Mapa de módulos](#mapa-de-módulos)
@@ -224,7 +222,6 @@ si algún grave subió > 6 dB y está cerca de su techo → golpe
 
 - Usa los dB **sin promediar**: el promedio le quita unos 6 dB al bombo y no se detectaría.
 - `anterior` se actualiza siempre, aun durante la espera. Si no, al terminar la espera compararía contra un bloque viejo.
-- Los valores están **[SIN VERIFICAR]** con golpes reales.
 
 ### nota.py
 
@@ -334,26 +331,3 @@ Como el 255 reinicia la cuenta, si se pierde un byte el Arduino se vuelve a sinc
 | El destello va en un arreglo aparte de las barras | El visualizador lo dibuja transparente detrás; al Arduino se le manda el máximo de los dos |
 | Constantes en `configuracion.py` | Un solo lugar para ajustar; los módulos no tienen números sueltos |
 | Cada módulo tiene su prueba en `if __name__ == "__main__"` | Se puede probar una parte sin el resto ni hardware |
-
----
-
-## Cómo agregar cosas
-
-**Un modo nuevo en el estado** (por ejemplo, brillo):
-
-1. Agregar la variable en `estado.py` y sus valores permitidos en `VALORES`.
-2. Si tiene un texto especial para el encabezado, agregarlo en `describir()`.
-3. Cambiarlo siempre con `estado.cambiar()`; agregar el botón en `dibujo.panel()` y, si hace falta, una tecla en `visualizador.TECLAS`.
-4. Si lo tiene que saber el Arduino, ver el punto siguiente.
-
-**Un byte nuevo en el paquete:**
-
-1. Actualizar [protocolo_serie.md](protocolo_serie.md).
-2. Agregar el parámetro y su comprobación en `serie.armar_paquete()`, y sus pruebas en el `__main__` de `serie.py`.
-3. Pasar el valor desde `principal.al_recibir_bloque` y desde `visualizador.py` (prueba simulada).
-4. Leerlo en `dibujo.dibujar_oled` si cambia lo que se ve.
-5. En el firmware: agrandar `datos[]` y cambiar la cuenta en `procesarByte`. **Los dos lados tienen que cambiar a la vez.**
-
-**La nota:** completar `nota.estimar()`. Pendiente de medir: con 11,7 Hz por valor del espectro, en G3 (196 Hz) un valor vale unos 100 cents; para el afinador hace falta interpolar el pico o una ventana más larga **[A CONFIRMAR: método]**.
-
-**Blynk:** completar `blynk_cliente.iniciar()` (conectar y poner `estado.blynk_conectado`) y `avisar_cambio()` (mandar el valor salvo que `origen == "Blynk"`). Lo que llegue de la app se aplica con `estado.aplicar_accion(codigo, "Blynk")` o `estado.cambiar(campo, valor, "Blynk")`.

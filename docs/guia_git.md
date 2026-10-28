@@ -29,7 +29,7 @@ Guía para los integrantes del equipo. Para instalar el proyecto, ver [instalaci
 sudo apt install git gh
 ```
 
-**[SIN VERIFICAR]** En algunas versiones de Debian o Ubuntu, `gh` puede no estar en los repositorios oficiales. Si `apt` no lo encuentra, buscar "GitHub CLI install Linux" en la documentación oficial de GitHub.
+En algunas versiones de Debian o Ubuntu, `gh` puede no estar en los repositorios oficiales. Si `apt` no lo encuentra, buscar "GitHub CLI install Linux" en la documentación oficial de GitHub.
 
 **4. Decirle a Git quién sos.** Con tu nombre y el **mismo correo de tu cuenta de GitHub**:
 
@@ -168,11 +168,3 @@ git restore <archivo>
 | `git log --oneline` | Ver la lista de commits (sale con `q`) |
 | `git pull` | Bajar los cambios de los demás |
 | `git push` | Subir tus commits |
-
-## Alternativa visual: VS Code
-
-VS Code tiene un panel de **Control de código fuente** (el ícono de ramas en la barra izquierda) que hace lo mismo con botones: muestra los archivos cambiados, permite agregarlos con **+**, escribir el mensaje del commit y sincronizar con GitHub. Se puede usar en vez de la terminal, pero conviene entender primero los comandos de arriba para saber qué está haciendo.
-
-## Ramas (branches)
-
-Por ahora **todos trabajan en la rama `main`**. Como cada uno edita su propia carpeta, en un equipo de tres es lo más simple. Si más adelante hay muchos conflictos, se puede pasar a usar ramas.

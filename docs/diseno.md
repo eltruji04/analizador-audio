@@ -48,9 +48,9 @@ Cada cambio queda anotado con su origen (`compu`, `Arduino` o `Blynk`), se muest
 | Modo | Fuente |
 |---|---|
 | Micrófono (`MIC`) | El micrófono de la computadora |
-| Línea (`LINE`) | El audio que reproduce la propia computadora (referencia: Apple Music en ALAC, sin pérdida). En macOS se captura con BlackHole; en Linux, con la fuente "monitor" de PulseAudio/PipeWire **[SIN VERIFICAR]** |
+| Línea (`LINE`) | El audio que reproduce la propia computadora. En macOS se captura con BlackHole; en Linux, con la fuente "monitor" de PulseAudio/PipeWire **[SIN VERIFICAR]** |
 
-Hoy la fuente se elige **antes de iniciar**, con `FUENTE_AUDIO` en `configuracion.py`, y se informa al Arduino en el byte 17 del paquete. La idea es poder cambiarla **en vivo**; si resulta muy complicado (hay que cerrar y abrir el stream de audio con el otro dispositivo), queda elegida al iniciar, pero los LEDs igual la muestran **[A CONFIRMAR: desde dónde se cambia en vivo — tecla, Blynk o botón]**.
+Hoy la fuente se elige **antes de iniciar**, con `FUENTE_AUDIO` en `configuracion.py`, y se informa al Arduino en el byte 17 del paquete. La idea es poder cambiarla **en vivo**.
 
 Si el Arduino no está conectado al iniciar, o se desconecta en el medio, el programa sigue funcionando sin enviar.
 
@@ -82,8 +82,8 @@ Si el Arduino no está conectado al iniciar, o se desconecta en el medio, el pro
 | Pulsador 2 | 10 | Pausa |
 | Pulsador 3 | 9 | Marca de pico |
 | Pulsador 4 | 6 | Efecto de golpe |
-| LED micrófono | **[A CONFIRMAR]** | Encendido cuando la fuente es el micrófono |
-| LED sistema | **[A CONFIRMAR]** | Encendido cuando la fuente es el audio de la computadora |
+| LED micrófono | 4 | Encendido cuando la fuente es el micrófono |
+| LED sistema | 2 | Encendido cuando la fuente es el audio de la computadora |
 
 - Los pulsadores usan `INPUT_PULLUP` (apretado = `LOW`) con antirrebote por software de 50 ms. Mandan su código una sola vez por cada vez que se aprietan.
 - Los **LEDs** se alternan según el byte 17 del paquete: siempre hay uno solo encendido. **Todavía no están en el firmware.**
@@ -98,7 +98,7 @@ La **forma** y el **color** se eligen por separado y se combinan libremente.
 | Forma | En la computadora | En la OLED |
 |---|---|---|
 | Barras | Cada barra sube y baja según el volumen de su banda | Igual |
-| Desde el centro | La barra crece desde el centro hacia arriba y hacia abajo | Igual **(pendiente en el firmware)** |
+| Desde el centro | La barra crece desde el centro hacia arriba y hacia abajo | Igual |
 | Onda | Una línea que une los topes de las bandas, con relleno suave abajo y un punto por banda | Barras |
 | Espectrograma | Historial de los últimos ~3 s: tiempo en horizontal (lo más nuevo a la derecha), bandas en vertical (agudos arriba) e intensidad como color. Sin marca de pico ni modo de color | Barras |
 
@@ -108,7 +108,7 @@ La computadora le avisa al Arduino la forma en el byte 21 del paquete: solo dist
 |---|---|
 | Fijo | Uno de los 5 colores de `COLORES_FIJOS` (celeste, verde, naranja, rosa, violeta), elegido en el panel del visualizador |
 | Arcoíris | Un tono distinto por banda, de rojo (graves) a violeta (agudos) |
-| Por nota ("modo armónico") | Todas las barras toman el color de la nota predominante (12 tonos repartidos en el círculo de colores); sin nota, el color fijo. Necesita `nota.py`, que **todavía no está implementado**. Es la parte de mayor riesgo del proyecto **[A CONFIRMAR: correspondencia nota → color]** |
+| Por nota ("modo armónico") | Todas las barras toman el color de la nota predominante (12 tonos repartidos en el círculo de colores); sin nota, el color fijo. Necesita `nota.py`, que **todavía no está implementado**. |
 
 El color solo existe en la computadora: la OLED es monocromática. En espectrograma el color representa la intensidad.
 
@@ -133,7 +133,7 @@ El color solo existe en la computadora: la OLED es monocromática. En espectrogr
 Contenido previsto:
 
 - **Controles:** pausa, marca de pico, golpe, velocidad de caída, forma, color y fuente de audio.
-- **Tablero de registro de uso** (pauta mínima de la cátedra) **[A CONFIRMAR: contenido]**.
+- **Tablero de registro de uso** (pauta mínima).
 - **Opcional:** guardar conjuntos de efectos.
 
 ### Token de Blynk
@@ -150,7 +150,7 @@ Es parte del producto, no solo una herramienta de prueba. Es una ventana de **12
 |---|---|
 | Encabezado | Título, rango de frecuencias, último cambio con su origen, conexión con el Arduino y Blynk, y fuente activa |
 | Espectro | Las 16 bandas en la forma y el color elegidos, con altura continua (no en escalones), etiquetas de frecuencia y tiras de golpe a los costados |
-| Espejo de la OLED | Réplica a ×3 de lo que muestra la OLED, dibujada a partir del **mismo paquete** que se manda al Arduino, con sus bytes debajo. Funciona aunque no haya Arduino |
+| Espejo de la OLED | Réplica de lo que muestra la OLED, dibujada a partir del **mismo paquete** que se manda al Arduino, con sus bytes debajo. Funciona aunque no haya Arduino |
 | Nota / afinador | La nota grande con la tira de 12 notas o, con el afinador activo, el afinador |
 | Panel de control | Fuente (solo lectura), velocidad de caída, pausa, pico, golpe, afinador, forma, color, muestras de color fijo y atajos de teclado |
 | Pie | Cuadros por segundo reales |
@@ -174,7 +174,7 @@ Cada vez que llega un bloque de audio (1024 muestras a 48 kHz, unos 21 ms), `pri
 7. **Calibración automática:** cada banda tiene un piso y un techo que se ajustan solos con la música. El techo sube enseguida y baja muy despacio; el piso se mueve despacio en las dos direcciones, así el ruido de fondo queda por debajo. La distancia entre los dos queda entre 12 y 50 dB, y ningún techo queda a más de 35 dB del más alto.
 8. **Alturas:** convierte los dB en una altura entre 0 (en el piso) y 32 (en el techo).
 9. **Suavizado y picos:** las barras suben enseguida y bajan según la velocidad de caída elegida; la marca de pico baja más despacio (`CAIDA_PICO`).
-10. **Golpe:** [`golpe.py`](../pc/golpe.py) mira los dB **sin promediar** (el promedio achata el bombo) de las bandas 1 y 2. Hay golpe si alguna sube más de 6 dB respecto del bloque anterior y queda a menos de 15 dB de su techo, con una espera de 0,15 s entre golpes. Con el efecto activo, llena las `BARRAS_GOLPE` **[SIN VERIFICAR: con golpes reales]**.
+10. **Golpe:** [`golpe.py`](../pc/golpe.py) mira los dB **sin promediar** (el promedio achata el bombo) de las bandas 1 y 2. Hay golpe si alguna sube más de 6 dB respecto del bloque anterior y queda a menos de 15 dB de su techo, con una espera de 0,15 s entre golpes. Con el efecto activo, llena las `BARRAS_GOLPE`.
 11. **Nota:** [`nota.py`](../pc/nota.py) estima la nota, su frecuencia y el desvío en cents. **Todavía no está implementado**: siempre devuelve "sin nota". Pendiente: con 11,7 Hz por valor del espectro no alcanza la precisión para el afinador en los graves; hace falta interpolar el pico o una ventana más larga.
 12. **Publicación:** deja las alturas, el destello, los picos y la nota en `estado.audio` para el visualizador.
 13. **Envío:** como mucho una vez cada `INTERVALO_ENVIO` (1/30 s) arma el paquete, lo guarda para el espejo de la OLED y, si hay Arduino, se lo manda. En pausa manda un último paquete y después nada.

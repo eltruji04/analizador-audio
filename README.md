@@ -1,6 +1,7 @@
 # Analizador de Espectro de Frecuencias
 
 ![Python](https://img.shields.io/badge/Python-3.14-3776AB?logo=python&logoColor=white)
+![C++](https://img.shields.io/badge/C%2B%2B-%2300599C.svg?logo=c%2B%2B&logoColor=white)
 ![Arduino](https://img.shields.io/badge/Arduino-Uno-00878F?logo=arduino&logoColor=white)
 ![Blynk](https://img.shields.io/badge/App-Blynk-23C48E)
 ![Estado](https://img.shields.io/badge/estado-en%20desarrollo-orange)
@@ -12,7 +13,7 @@ Proyecto final del **Taller de Introducción a la Ingeniería Eléctrica (Taller
 ## Contenido
 
 - [Descripción](#descripción)
-- [Construido con](#construido-con)
+- [Stack tecnológico](#stack-tecnológico)
 - [Inicio rápido](#inicio-rápido)
 - [Uso](#uso)
 - [Roadmap](#roadmap)
@@ -43,7 +44,7 @@ El objetivo del proyecto:
 - **Visualizador en la computadora:** el espectro en alta resolución, un espejo de la OLED y un panel de control.
 - **Funciona sin Arduino:** si no está conectado (o se desconecta), el análisis y el visualizador siguen andando.
 
-## Construido con
+## Stack tecnológico
 
 | Parte | Tecnología |
 |---|---|

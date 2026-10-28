@@ -1,6 +1,6 @@
 # Diseño del sistema
 
-Documento de referencia del diseño acordado. Para instalar y usar el programa, ver el [README](../README.md) y la [guía de instalación](instalacion.md).
+Documento de referencia del diseño acordado. Para instalar y usar el programa, ver el [README](../README.md) y la [guía de instalación](instalacion.md); para el detalle de las funciones, [Funcionamiento del código](codigo.md).
 
 > Los puntos marcados **[SIN VERIFICAR]** todavía no se probaron, y los marcados **[A CONFIRMAR]** son decisiones pendientes.
 

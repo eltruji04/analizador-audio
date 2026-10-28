@@ -166,6 +166,7 @@ analizador-audio/
 |---|---|
 | [Instalación y configuración](docs/instalacion.md) | Entorno en macOS y Linux, captura del audio del sistema, firmware, parámetros y pruebas |
 | [Diseño del sistema](docs/diseno.md) | Arquitectura, hardware, modos, Blynk, visualizador y procesamiento de audio |
+| [Funcionamiento del código](docs/codigo.md) | Módulos, hilos, recorrido de un bloque de audio, funciones principales y cómo agregar cosas |
 | [Protocolo serie](docs/protocolo_serie.md) | Formato de los mensajes entre la computadora y el Arduino |
 | [Guía de Git](docs/guia_git.md) | Cómo trabaja el equipo con Git y GitHub |
 

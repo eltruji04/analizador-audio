@@ -10,7 +10,7 @@ Captura el audio de forma continua y, cada vez que llega un bloque nuevo:
    caída elegida (estado.velocidad);
 6. actualiza los picos, el destello de golpe (golpe.py) y la nota (nota.py)
    y los deja en estado.py para el visualizador;
-7. si no está en pausa, arma el paquete de 21 bytes (unos 21 por segundo):
+7. si no está en pausa, arma el paquete de 22 bytes (unos 21 por segundo):
    lo guarda en el estado para el espejo de la OLED y, si hay un Arduino
    conectado, se lo manda por el puerto serie.
 
@@ -174,6 +174,9 @@ def al_recibir_bloque(bloque, cantidad_muestras, tiempo, aviso):
     # Se lee una sola vez: el botón la cambia desde otro hilo, y así el
     # `if` y el paquete usan el mismo valor aunque cambie en el medio.
     pausa = estado.pausa
+    # Forma de la OLED (byte 21): solo "centro" se dibuja desde el centro;
+    # "onda" y "espectrograma" no existen en la OLED y se ven como barras.
+    forma_oled = configuracion.FORMA_OLED_CENTRO if estado.forma == "centro" else configuracion.FORMA_OLED_BARRAS
     # Paquete: como mucho uno cada INTERVALO_ENVIO (así no se arma en
     # todos los bloques). Se arma aunque no haya Arduino, para el espejo
     # de la OLED. armar_paquete ya convierte a entero y limita entre 0 y
@@ -183,7 +186,7 @@ def al_recibir_bloque(bloque, cantidad_muestras, tiempo, aviso):
             # Normal: se envía siempre. Recién entrado en pausa: un último
             # paquete (con pausa = 1) para que el Arduino congele la pantalla.
             salida = numpy.maximum(mostradas, destello)
-            paquete = serie.armar_paquete(salida, modo, numero_nota, pausa, estado.pico)
+            paquete = serie.armar_paquete(salida, modo, numero_nota, pausa, estado.pico, forma_oled)
             enviar_paquete(paquete)
             ultimo_envio = ahora
             pausa_enviada = pausa == 1

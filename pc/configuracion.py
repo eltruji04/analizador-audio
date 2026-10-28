@@ -39,6 +39,10 @@ MODO_LINE = 1
 FUENTE_AUDIO = MODO_LINE
 SIN_NOTA = 12                   # valor de la nota (byte 18) cuando no hay una nota clara
 INTERVALO_ENVIO = 1 / 30        # tiempo mínimo entre dos paquetes, en segundos
+# Forma de las barras en la OLED (byte 21 del paquete). La OLED solo sabe
+# dibujar barras y centro: con "onda" y "espectrograma" muestra barras.
+FORMA_OLED_BARRAS = 0           # desde el piso (formas "barras", "onda" y "espectrograma")
+FORMA_OLED_CENTRO = 1           # desde el centro (forma "centro")
 
 # --- Calibración automática (ver bandas.actualizar_niveles) ---
 RANGO_MINIMO_DB = 12.0       # distancia mínima entre piso y techo de una banda

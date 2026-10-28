@@ -1,8 +1,8 @@
 """
 serie.py — Comunicación por USB con el Arduino Uno.
 
-- Compu → Arduino: un paquete de 21 bytes con las 16 alturas, la fuente,
-  la nota, la pausa y el pico.
+- Compu → Arduino: un paquete de 22 bytes con las 16 alturas, la fuente,
+  la nota, la pausa, el pico y la forma de la OLED.
 - Arduino → compu: un byte por cada botón apretado (códigos 1 a 4).
 
 El formato completo está en docs/protocolo_serie.md. Si se cambia, hay
@@ -25,10 +25,10 @@ def conectar(puerto):
     time.sleep(2)
     return conexion
 
-def armar_paquete(alturas, modo, nota, pausa, pico):
+def armar_paquete(alturas, modo, nota, pausa, pico, forma_oled):
     """
-    Arma el paquete de 21 bytes que se envía al Arduino:
-    255, las 16 alturas, modo, nota, pausa y pico.
+    Arma el paquete de 22 bytes que se envía al Arduino:
+    255, las 16 alturas, modo, nota, pausa, pico y forma_oled.
 
     Las alturas pueden venir con decimales o fuera de rango (son
     mediciones): se convierten a entero y se limitan entre 0 y
@@ -56,6 +56,9 @@ def armar_paquete(alturas, modo, nota, pausa, pico):
     if pico not in (0, 1):
         raise ValueError(f"El valor de pico debe ser 0 o 1: {pico}")
     paquete.append(pico)
+    if forma_oled not in (configuracion.FORMA_OLED_BARRAS, configuracion.FORMA_OLED_CENTRO):
+        raise ValueError(f"La forma OLED debe ser 0 (barras) o 1 (centro): {forma_oled}")
+    paquete.append(forma_oled)
     return bytes(paquete)
 
 def enviar(conexion, paquete):
@@ -80,24 +83,34 @@ if __name__ == "__main__":
     import estado
     # Incluye alturas fuera de rango (-2, 34, 300) para ver que se limitan a 0 y 32.
     alturas_prueba = [-2, 31, 34, 300, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15]
-    paquete = armar_paquete(alturas_prueba, configuracion.MODO_MIC, configuracion.SIN_NOTA, estado.pausa, estado.pico)
+    paquete = armar_paquete(alturas_prueba, configuracion.MODO_MIC, configuracion.SIN_NOTA,
+                            estado.pausa, estado.pico, configuracion.FORMA_OLED_BARRAS)
     print(f"Paquete: {list(paquete)}")
     print(f"Largo del paquete: {len(paquete)}")
 
     # Pruebas de armar_paquete con pausa y pico activados: el largo tiene
-    # que seguir siendo 21 y los últimos dos bytes (pausa, pico) valer 1.
-    paquete = armar_paquete(alturas_prueba, configuracion.MODO_LINE, configuracion.SIN_NOTA, 1, 1)
-    print(f"Paquete con pausa y pico (esperado largo 21, termina en 1, 1): "
-          f"largo {len(paquete)}, termina en {paquete[-2]}, {paquete[-1]}")
+    # que seguir siendo 22 y los últimos tres bytes (pausa, pico, forma)
+    # valer 1, 1, 0.
+    paquete = armar_paquete(alturas_prueba, configuracion.MODO_LINE, configuracion.SIN_NOTA,
+                            1, 1, configuracion.FORMA_OLED_BARRAS)
+    print(f"Paquete con pausa y pico (esperado largo 22, termina en 1, 1, 0): "
+          f"largo {len(paquete)}, termina en {paquete[-3]}, {paquete[-2]}, {paquete[-1]}")
+
+    # Forma "centro": el último byte (forma) tiene que valer 1.
+    paquete = armar_paquete(alturas_prueba, configuracion.MODO_LINE, configuracion.SIN_NOTA,
+                            0, 0, configuracion.FORMA_OLED_CENTRO)
+    print(f"Paquete con forma centro (esperado largo 22, termina en 1): "
+          f"largo {len(paquete)}, termina en {paquete[-1]}")
 
     # Valores inválidos: cada uno tiene que dar ValueError con su mensaje.
     # El try/except es para que el error no corte las pruebas que siguen.
-    # Cada caso es (modo, pausa, pico, nota).
-    casos_invalidos = [(2, 0, 0, 0), (0, 5, 0, 0), (0, 0, 255, 0), (0,0,0,13)]
-    for modo, pausa, pico, nota in casos_invalidos:
+    # Cada caso es (modo, pausa, pico, nota, forma_oled).
+    casos_invalidos = [(2, 0, 0, 0, 0), (0, 5, 0, 0, 0), (0, 0, 255, 0, 0), (0, 0, 0, 13, 0), (0, 0, 0, 0, 2)]
+    for modo, pausa, pico, nota, forma_oled in casos_invalidos:
         try:
-            armar_paquete(alturas_prueba, modo, nota, pausa, pico)
-            print(f"ERROR: modo={modo}, pausa={pausa}, pico={pico}, nota={nota} no dio error")
+            armar_paquete(alturas_prueba, modo, nota, pausa, pico, forma_oled)
+            print(f"ERROR: modo={modo}, pausa={pausa}, pico={pico}, nota={nota}, "
+                  f"forma_oled={forma_oled} no dio error")
         except ValueError as error:
             print(f"Error esperado: {error}")
 

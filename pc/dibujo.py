@@ -370,12 +370,12 @@ def dibujar_oled(oled, paquete, picos):
     Dibuja en una superficie de 128×32 lo que mostraría la OLED con este
     paquete: barras a la izquierda, fuente y nota a la derecha.
 
-    La forma "centro" no va en el paquete: se dibuja centrada según el
-    estado de la compu (falta decidir con Lucía si la OLED también lo hace).
+    Las barras salen desde el centro si el byte 21 (forma OLED) lo pide;
+    si no, desde el piso (también con onda y espectrograma).
     """
     alturas = paquete[1:1 + configuracion.CANTIDAD_BARRAS]
-    fuente, nota, _, pico = paquete[17], paquete[18], paquete[19], paquete[20]
-    desde_centro = estado.forma == "centro"
+    fuente, nota, _, pico, forma_oled = paquete[17], paquete[18], paquete[19], paquete[20], paquete[21]
+    desde_centro = forma_oled == configuracion.FORMA_OLED_CENTRO
     for i, alto in enumerate(alturas):
         x = i * ANCHO_BARRA_OLED
         y = (ALTO_OLED - alto) // 2 if desde_centro else ALTO_OLED - alto

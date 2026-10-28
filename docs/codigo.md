@@ -20,7 +20,6 @@ Explica cómo está organizado el código, qué hacen las funciones más importa
   - [configuracion.py](#configuracionpy)
 - [Firmware del Arduino](#firmware-del-arduino)
 - [Decisiones de diseño del código](#decisiones-de-diseño-del-código)
-- [Cómo agregar cosas](#cómo-agregar-cosas)
 
 ---
 
@@ -314,7 +313,7 @@ paquete completo:
     leyendo = false
 ```
 
-Como el 255 reinicia la cuenta, si se pierde un byte el Arduino se vuelve a sincronizar con el próximo paquete. Hoy lee 20 bytes y no el 21 (forma): ver [protocolo_serie.md → Estado del firmware](protocolo_serie.md#estado-del-firmware).
+Como el 255 reinicia la cuenta, si se pierde un byte el Arduino se vuelve a sincronizar con el próximo paquete. Hoy lee 20 bytes y no el 21 (forma), así que siempre dibuja barras desde el piso: leer la forma está pendiente en el firmware (ver [Forma en la OLED](protocolo_serie.md#forma-en-la-oled-byte-21)).
 
 ---
 

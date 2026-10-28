@@ -19,7 +19,7 @@ Guía detallada para preparar el entorno en macOS y Linux. El resumen está en e
 
 ## Requisitos
 
-- **Python:** desarrollado con 3.14. No usar funciones exclusivas de versiones recientes hasta definirlo.
+- **Python:** desarrollado con 3.14.
 - **Git** y una cuenta de GitHub con acceso al repositorio.
 - **Arduino IDE** para cargar el firmware en el Uno, con las librerías *Adafruit SSD1306* y *Adafruit GFX Library* (ver [Firmware del Arduino](#firmware-del-arduino)).
 - **VS Code** (recomendado) con la extensión *Python* de Microsoft.
@@ -59,12 +59,6 @@ Hay que **reiniciar** la Mac después de instalarlo. Luego:
 3. Marcar **BlackHole 2ch** y la salida en la que se escucha (por ejemplo, los parlantes de la Mac).
 4. Elegir la salida real como **dispositivo principal** y activar **Corrección de deriva** en BlackHole.
 5. En **Ajustes del Sistema → Sonido → Salida**, elegir el **dispositivo de salida múltiple**.
-
-**Limitaciones conocidas:**
-- Con el dispositivo de salida múltiple, el volumen se controla desde la app de música, no con las teclas de la Mac.
-- Con auriculares Bluetooth puede haber retardo o cortes; para pruebas, mejor usar los parlantes.
-- **No usar el micrófono de auriculares Bluetooth** para el modo micrófono: al usarlo, macOS baja la calidad del audio y se pierden las bandas agudas. Usar el **Micrófono de MacBook Air**.
-- Si el puerto serie se congela o se corta, probar primero **otro puerto USB** (o sin hub) antes de buscar el error en el código.
 
 ---
 
@@ -131,7 +125,7 @@ python -m serial.tools.list_ports    # lista los puertos serie
 
 - La primera línea tiene que imprimir `ok` (pygame además imprime su versión).
 - En macOS, la lista de audio tiene que incluir **BlackHole 2ch** y el **dispositivo de salida múltiple**.
-- Con el Arduino conectado, debería aparecer un puerto nuevo. Nombres probables **[SIN VERIFICAR]**:
+- Con el Arduino conectado, debería aparecer un puerto nuevo. Nombres probables:
   - macOS: `/dev/cu.usbmodem…` (Uno original) o `/dev/cu.usbserial…` (clon con chip CH340).
   - Linux: `/dev/ttyACM0` (Uno original) o `/dev/ttyUSB0` (clon).
 
@@ -163,7 +157,7 @@ Para ajustar el comportamiento:
 | `RANGO_MINIMO_DB`, `RANGO_MAXIMO_DB`, `TECHO_MINIMO_DB`, `TECHO_INICIAL_DB`, `DISTANCIA_MAXIMA_DB` | Límites de la calibración automática (explicados en `bandas.actualizar_niveles`). |
 | `VELOCIDAD_TECHO_DB`, `VELOCIDAD_PISO_BAJA_DB`, `VELOCIDAD_PISO_SUBE_DB` | Qué tan rápido se mueven el techo y el piso de cada banda. |
 | `RECALIBRAR_MARGEN_DB`, `RECALIBRAR_RANGO_DB` | Dónde quedan el techo y el piso al recalibrar con la tecla `R`. |
-| `BANDAS_DETECCION_GOLPE`, `GOLPE_SUBIDA_DB`, `GOLPE_DISTANCIA_TECHO_DB`, `GOLPE_ESPERA` | Detección de golpe (explicados en `golpe.py`). **[SIN VERIFICAR]** con golpes reales. |
+| `BANDAS_DETECCION_GOLPE`, `GOLPE_SUBIDA_DB`, `GOLPE_DISTANCIA_TECHO_DB`, `GOLPE_ESPERA` | Detección de golpe (explicados en `golpe.py`). |
 | `BARRAS_GOLPE` | Barras que se llenan con cada golpe (1, 2, 15 y 16). |
 | `COLORES_FIJOS` | Muestras del modo de color fijo. |
 
@@ -175,8 +169,6 @@ Para ajustar el comportamiento:
 4. **Cerrar el Monitor Serie** antes de correr `principal.py`: si está abierto, ocupa el puerto.
 
 `PRUEBA_TEXTO` en el `.ino` tiene que valer `0` para usarlo con la computadora. Con `1` el Arduino lee los paquetes como texto escrito en el Monitor Serie (para probar la pantalla sin Python).
-
-> El firmware actual todavía usa el paquete viejo de 21 bytes: ignora el byte 21 (forma) y siempre dibuja barras desde el piso. Ver [Protocolo serie → Estado del firmware](protocolo_serie.md#estado-del-firmware).
 
 ---
 

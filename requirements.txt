@@ -9,3 +9,5 @@ requests==2.34.2
 sounddevice==0.5.6
 urllib3==2.8.0
 pygame-ce==2.5.8
+blynk-library-python==0.2.0
+python-dotenv==1.2.4

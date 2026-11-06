@@ -508,14 +508,16 @@ def panel(superficie):
     x = PANEL.x + 16
     ancho = PANEL.w - 32
 
-    # Fuente: solo se muestra, se elige en configuracion.py.
-    y = seccion(superficie, PANEL.y + 16, "Fuente")
-    fuente = "MIC" if estado.fuente == configuracion.MODO_MIC else "LINE"
-    texto(superficie, fuente, "negrita", colores.TEXTO, (x, y))
-    texto(superficie, "fija (configuracion.py)", "chica", colores.TEXTO_SECUNDARIO, (PANEL.right - 16, y + 2), "topright")
+    # Fuente: MIC o LINE. Al cambiarla, principal.py reabre el stream con
+    # el dispositivo de configuracion.py que le corresponde.
+    y = seccion(superficie, PANEL.y + 16, "Fuente", "I")
+    fuentes_audio = [(configuracion.MODO_MIC, "MIC"), (configuracion.MODO_LINE, "LINE")]
+    for (modo, etiqueta), rect in zip(fuentes_audio, grilla(x, y, 2, ancho, 32, 2)):
+        boton(superficie, rect, etiqueta, estado.fuente == modo,
+              lambda modo=modo: estado.cambiar("fuente", modo, "compu"))
 
     # Velocidad de caída: la que cambia el botón 1 del Arduino.
-    y = seccion(superficie, y + 34, "Caída de las barras", "V")
+    y = seccion(superficie, y + 50, "Caída de las barras", "V")
     for i, rect in enumerate(grilla(x, y, 3, ancho, 32, 3)):
         boton(superficie, rect, estado.NOMBRES_VELOCIDADES[i].capitalize(), estado.velocidad == i,
               lambda i=i: estado.cambiar("velocidad", i, "compu"))
@@ -557,7 +559,7 @@ def panel(superficie):
         botones.append((rect, lambda i=i: estado.cambiar("color_fijo", i, "compu")))
 
     y = seccion(superficie, y + 54, "Atajos de teclado")
-    for linea in ["Espacio pausa · P peak · G golpe", "A afinador · F forma · C color", "V velocidad de caída · R recalibrar"]:
+    for linea in ["Espacio pausa · P peak · G golpe", "A afinador · F forma · C color", "V caída · R recalibrar · I fuente"]:
         texto(superficie, linea, "chica", colores.TEXTO_SECUNDARIO, (x, y))
         y += 20
 

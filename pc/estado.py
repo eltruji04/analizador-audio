@@ -63,6 +63,7 @@ VALORES = {
     "forma": configuracion.FORMAS,
     "color": configuracion.MODOS_COLOR,
     "color_fijo": range(len(configuracion.COLORES_FIJOS)),
+    "fuente": (configuracion.MODO_MIC, configuracion.MODO_LINE),
 }
 
 NOMBRES_VELOCIDADES = ["lenta", "normal", "rápida"]
@@ -96,6 +97,8 @@ def describir(campo, valor):
         return f"Caída {NOMBRES_VELOCIDADES[valor]}"
     if campo == "color_fijo":
         return f"Color fijo: {configuracion.COLORES_FIJOS[valor][0]}"
+    if campo == "fuente":
+        return f"Fuente: {'MIC' if valor == configuracion.MODO_MIC else 'LINE'}"
     return f"{campo.capitalize()}: {valor}"
 
 

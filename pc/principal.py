@@ -81,8 +81,6 @@ contador = 0
 ultimo_envio = 0
 # Cantidad de paquetes enviados.
 envios = 0
-# Fuente de audio que se informa en el paquete.
-modo = configuracion.FUENTE_AUDIO
 # Puerto serie abierto con el Arduino. None = no hay Arduino conectado:
 # el análisis sigue funcionando, pero no se envía nada.
 conexion = None
@@ -94,6 +92,11 @@ pausa_enviada = False
 # Momento del último cuadro dibujado (time.monotonic()). Empieza en 0 para
 # que el primer cuadro se dibuje enseguida.
 ultimo_dibujo = 0
+
+# --- Fuente de audio ---
+# Fuente del stream abierto ahora (MODO_MIC o MODO_LINE). None hasta que
+# elegir_dispositivo() abre el primero.
+fuente_abierta = None
 
 def al_recibir_bloque(bloque, cantidad_muestras, tiempo, aviso):
     """
@@ -186,7 +189,7 @@ def al_recibir_bloque(bloque, cantidad_muestras, tiempo, aviso):
             # Normal: se envía siempre. Recién entrado en pausa: un último
             # paquete (con pausa = 1) para que el Arduino congele la pantalla.
             salida = numpy.maximum(mostradas, destello)
-            paquete = serie.armar_paquete(salida, modo, numero_nota, pausa, estado.pico, forma_oled)
+            paquete = serie.armar_paquete(salida, estado.fuente, numero_nota, pausa, estado.pico, forma_oled)
             enviar_paquete(paquete)
             ultimo_envio = ahora
             pausa_enviada = pausa == 1
@@ -196,6 +199,53 @@ def al_recibir_bloque(bloque, cantidad_muestras, tiempo, aviso):
     contador += 1
     if contador % 5 == 0:
         print(f"Alturas: {mostradas.round().astype(int)}")
+
+def nombre_dispositivo(fuente):
+    """Nombre del dispositivo de configuracion.py que corresponde a la fuente."""
+    if fuente == configuracion.MODO_MIC:
+        return configuracion.DISPOSITIVO_MICROFONO
+    if fuente == configuracion.MODO_LINE:
+        return configuracion.DISPOSITIVO_SISTEMA
+    raise ValueError(f"Fuente de audio desconocida: {fuente}")
+
+
+def elegir_dispositivo(fuente):
+    """
+    La llama capturar_continuo() antes de abrir cada stream: al empezar y
+    cada vez que cambia estado.fuente. Devuelve el número del dispositivo.
+
+    Corre en el hilo principal con el stream anterior ya cerrado, así que
+    el callback no está usando la memoria ni los niveles: se pueden
+    reiniciar sin riesgo.
+
+    Si el dispositivo nuevo no está (por ejemplo, BlackHole sin instalar),
+    vuelve a la fuente anterior. Al empezar no hay anterior: da ValueError.
+    """
+    global fuente_abierta, db_suave
+    nombre = nombre_dispositivo(fuente)
+    try:
+        numero = captura.buscar_dispositivo(nombre)
+    except ValueError:
+        if fuente_abierta is None or fuente_abierta == fuente:
+            raise
+        print(f"No encontré '{nombre}': sigo con la fuente anterior")
+        # capturar_continuo() ve el cambio y vuelve a llamar con la anterior.
+        estado.cambiar("fuente", fuente_abierta, "compu")
+        nombre = nombre_dispositivo(fuente_abierta)
+        numero = captura.buscar_dispositivo(nombre)
+        fuente = fuente_abierta
+
+    # Cambio de fuente (no al empezar): el micrófono y la línea tienen
+    # niveles muy distintos, así que se descarta lo de la fuente anterior:
+    # el audio de la ventana deslizante, el promedio de dB y la calibración.
+    if fuente_abierta is not None and fuente != fuente_abierta:
+        memoria[:] = 0
+        db_suave = None
+        estado.pedido_recalibrar = True
+    fuente_abierta = fuente
+    print(f"Usando dispositivo: {nombre}")
+    return numero
+
 
 def enviar_paquete(paquete):
     """
@@ -275,19 +325,12 @@ if __name__ == "__main__":
     # `inicio` exista aunque se apriete Ctrl+C enseguida.
     inicio = time.monotonic()
     try:
-        if configuracion.FUENTE_AUDIO == configuracion.MODO_MIC:
-            nombre = configuracion.DISPOSITIVO_MICROFONO
-        elif configuracion.FUENTE_AUDIO == configuracion.MODO_LINE:
-            nombre = configuracion.DISPOSITIVO_SISTEMA
-        else:
-            raise ValueError(f"Fuente de audio desconocida: {configuracion.FUENTE_AUDIO}")
-        print(f"Usando dispositivo: {nombre}")
-        numero = captura.buscar_dispositivo(nombre)
         visualizador.iniciar()
         print("Analizando… (Ctrl+C o cerrar la ventana para salir)")
-        # Termina cuando en_cada_vuelta() devuelve False (se cerró la
-        # ventana) o con Ctrl+C.
-        captura.capturar_continuo(numero, al_recibir_bloque, en_cada_vuelta)
+        # Abre el dispositivo de estado.fuente con elegir_dispositivo() y
+        # lo reabre cada vez que cambia. Termina cuando en_cada_vuelta()
+        # devuelve False (se cerró la ventana) o con Ctrl+C.
+        captura.capturar_continuo(elegir_dispositivo, al_recibir_bloque, en_cada_vuelta)
     except KeyboardInterrupt:
         # Ctrl+C: no hay nada más que hacer acá; el cierre está en `finally`.
         pass

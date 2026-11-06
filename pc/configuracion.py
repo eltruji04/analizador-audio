@@ -34,8 +34,8 @@ ALTURA_MAXIMA = 32              # alto de la OLED en píxeles
 # Fuente de audio (byte 17 del paquete).
 MODO_MIC = 0
 MODO_LINE = 1
-# Fija durante toda la ejecución: cambiar a MODO_MIC para usar el micrófono
-# en lugar de la entrada de línea.
+# Fuente con la que arranca el programa. Después se cambia con la tecla I
+# o los botones MIC | LINE del panel.
 FUENTE_AUDIO = MODO_LINE
 SIN_NOTA = 12                   # valor de la nota (byte 18) cuando no hay una nota clara
 INTERVALO_ENVIO = 1 / 30        # tiempo mínimo entre dos paquetes, en segundos

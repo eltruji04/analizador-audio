@@ -33,6 +33,8 @@ TECLAS = {
     pygame.K_c: lambda: estado.siguiente("color", "compu"),
     pygame.K_v: lambda: estado.siguiente("velocidad", "compu"),
     pygame.K_r: lambda: estado.pedir_recalibracion("compu"),
+    # Fuente: alterna entre MIC y LINE (MODO_MIC = 0, MODO_LINE = 1).
+    pygame.K_i: lambda: estado.alternar("fuente", "compu"),
 }
 
 # Ventana. La crea iniciar(); empieza vacía.

@@ -9,6 +9,7 @@ import sounddevice
 import numpy
 import time
 import configuracion
+import estado
 
 def buscar_dispositivo(texto):
     """
@@ -50,7 +51,7 @@ def nivel_rms(audio):
     promedio_cuadrados = numpy.mean(audio_cuadrado)
     return numpy.sqrt(promedio_cuadrados)
 
-def al_recibir_bloque(bloque, cantidad_muestras, tiempo, estado):
+def al_recibir_bloque(bloque, cantidad_muestras, tiempo, aviso):
     """
     Función que llama sounddevice cada vez que hay un bloque de audio listo
     (callback). Es solo para la prueba de este archivo: el programa usa
@@ -58,16 +59,21 @@ def al_recibir_bloque(bloque, cantidad_muestras, tiempo, estado):
 
     Muestra el nivel del bloque como una barra de '#'.
     """
-    if estado: 
-        print(estado)
+    if aviso: 
+        print(aviso)
     nivel = nivel_rms(bloque)
     # Escala para que la barra tenga un largo visible (0 a 100 '#').
     cantidad = int(nivel * 100)
     print("#" * cantidad)    
 
-def capturar_continuo(numero_dispositivo, procesar_bloque, en_cada_vuelta=None):
+def capturar_continuo(elegir_dispositivo, procesar_bloque, en_cada_vuelta=None):
     """
-    Captura audio de forma continua desde el dispositivo indicado.
+    Captura audio de forma continua desde el dispositivo de estado.fuente.
+
+    `elegir_dispositivo` es una función que recibe la fuente (MODO_MIC o
+    MODO_LINE) y devuelve el número del dispositivo que hay que abrir. Se
+    llama al empezar y cada vez que cambia estado.fuente: entonces se sale
+    del `with` (se cierra el stream) y se abre el de la fuente nueva.
 
     El audio llega en bloques y cada bloque se pasa a `procesar_bloque`,
     una función que recibe (bloque, cantidad_muestras, tiempo, aviso)
@@ -80,33 +86,40 @@ def capturar_continuo(numero_dispositivo, procesar_bloque, en_cada_vuelta=None):
     botones del Arduino.
 
     Termina cuando en_cada_vuelta() devuelve False (por ejemplo, porque se
-    cerró la ventana) o con Ctrl+C (KeyboardInterrupt). Al salir del
+    cerró la ventana) o con Ctrl+C (KeyboardInterrupt). En ese caso sale
+    con `return`, para no volver a abrir otro stream. Al salir del
     `with`, el stream se cierra.
     """
-    info = sounddevice.query_devices(numero_dispositivo)
-    canales = info['max_input_channels']
-    # El flujo queda abierto mientras se está dentro del `with`.
-    with sounddevice.InputStream(
-        device=numero_dispositivo, 
-        channels=canales, 
-        samplerate=configuracion.FRECUENCIA_MUESTREO, 
-        blocksize=configuracion.TAMANO_BLOQUE, 
-        latency='low',
-        callback=procesar_bloque):
-        # El audio lo procesa el callback en otro hilo; este bucle solo
-        # mantiene el stream abierto y atiende en_cada_vuelta cada ~10 ms.
-        while True:
-            if en_cada_vuelta is not None:
-                if en_cada_vuelta() is False:
+    while True:
+        fuente_abierta = estado.fuente
+        numero = elegir_dispositivo(fuente_abierta)
+        canales = sounddevice.query_devices(numero)['max_input_channels']
+        
+        with sounddevice.InputStream(
+            device=numero, 
+            channels=canales, 
+            samplerate=configuracion.FRECUENCIA_MUESTREO, 
+            blocksize=configuracion.TAMANO_BLOQUE, 
+            latency='low',
+            callback=procesar_bloque):
+            # El audio lo procesa el callback en otro hilo; este bucle solo
+            # mantiene el stream abierto y atiende en_cada_vuelta cada ~10 ms.
+            while True:
+                if en_cada_vuelta is not None and en_cada_vuelta() is False:
+                    return
+                if estado.fuente != fuente_abierta:
                     break
-            time.sleep(0.01)
+                time.sleep(0.01)
+
 
 # Esta parte solo se ejecuta si se corre este archivo directamente (python pc/captura.py)
 # no cuando otro módulo lo importa.
 if __name__ == "__main__":
+    def elegir_dispositivo(fuente):
+        return buscar_dispositivo(configuracion.DISPOSITIVO_SISTEMA)
+
     try:
-        numero = buscar_dispositivo(configuracion.DISPOSITIVO_SISTEMA)
         print("Capturando… (Ctrl+C para salir)")
-        capturar_continuo(numero, al_recibir_bloque)
+        capturar_continuo(elegir_dispositivo, al_recibir_bloque)
     except KeyboardInterrupt:
         print("Captura detenida")

@@ -43,7 +43,7 @@ Explica cómo está organizado el código, qué hacen las funciones más importa
 | Módulo | Responsabilidad |
 |---|---|
 | `principal.py` | Punto de entrada. Une todo: abre el Arduino, arranca la captura y procesa cada bloque |
-| `captura.py` | Busca el dispositivo de audio por nombre y captura de forma continua |
+| `captura.py` | Busca el dispositivo de audio por nombre y captura de forma continua; reabre la captura cuando cambia la fuente |
 | `bandas.py` | Matemática del análisis: FFT por bandas, calibración, alturas, suavizado y picos |
 | `golpe.py` | Detecta golpes del bombo |
 | `nota.py` | Estima la nota (pendiente) |
@@ -52,19 +52,20 @@ Explica cómo está organizado el código, qué hacen las funciones más importa
 | `visualizador.py` | Ventana: eventos, teclas y orden de dibujo |
 | `dibujo.py` | Una función por zona de la ventana |
 | `colores.py` | Paleta de la interfaz y color de cada banda |
-| `blynk_cliente.py` | Conexión con Blynk (pendiente) |
+| `blynk_cliente.py` | Conexión con Blynk, en un hilo propio |
 | `configuracion.py` | Todas las constantes |
 
 ---
 
 ## Los dos hilos
 
-El programa corre en **dos hilos** al mismo tiempo:
+El programa corre en **dos hilos** al mismo tiempo, más uno aparte para Blynk:
 
 | Hilo | Quién lo maneja | Qué hace | Frecuencia |
 |---|---|---|---|
 | **De audio** | `sounddevice` | Llama a `principal.al_recibir_bloque` con cada bloque: análisis, golpe, nota y envío al Arduino | ~47 veces/s (un bloque cada ~21 ms) |
-| **Principal** | `captura.capturar_continuo` | Llama a `principal.en_cada_vuelta`: lee los botones y dibuja la ventana | ~100 vueltas/s; dibuja ~30 cuadros/s |
+| **Principal** | `captura.capturar_continuo` | Llama a `principal.en_cada_vuelta`: lee los botones y dibuja la ventana. Si cambió `estado.fuente`, cierra la captura y la vuelve a abrir con el otro dispositivo | ~100 vueltas/s; dibuja ~30 cuadros/s |
+| **De Blynk** | `blynk_cliente.bucle` | Manda a la app los cambios que quedaron en la cola y aplica los que llegan de la app; si se corta, reconecta | Escucha a Blynk hasta 50 ms por vuelta |
 
 **Por qué dos hilos:** el audio no puede esperar. Si el análisis se hiciera en el mismo bucle que la ventana, un cuadro lento haría perder audio. Y al revés, en macOS la ventana **solo** se puede manejar desde el hilo principal, así que no puede ir en el callback.
 
@@ -73,7 +74,8 @@ El programa corre en **dos hilos** al mismo tiempo:
 - El hilo de audio escribe los resultados con `estado.publicar_audio()`, que **reemplaza el diccionario `estado.audio` entero** con copias de los arreglos.
 - El hilo principal lee `datos = estado.audio` **una sola vez** por cuadro.
 - Como el reemplazo es de un solo paso, la ventana nunca ve la mitad de un bloque y la mitad del siguiente.
-- Los modos (`estado.pausa`, `estado.forma`…) los cambia el hilo principal y los lee el de audio. Por eso `al_recibir_bloque` lee `estado.pausa` **una sola vez** en una variable local: así el `if` y el paquete usan el mismo valor aunque el botón lo cambie en el medio.
+- La captura solo se cierra y se abre desde el hilo principal. `principal.elegir_dispositivo` reinicia la memoria, el promedio y la calibración justo antes de abrir la nueva, cuando la anterior ya está cerrada: así el callback no los está usando.
+- Los modos (`estado.pausa`, `estado.forma`…) los cambia el hilo principal (o el de Blynk) y los lee el de audio. Por eso `al_recibir_bloque` lee `estado.pausa` **una sola vez** en una variable local: así el `if` y el paquete usan el mismo valor aunque el botón lo cambie en el medio.
 
 ---
 
@@ -116,15 +118,17 @@ sounddevice ──► bloque (1024 muestras, estéreo)
 
 ### principal.py
 
-Todo lo que tiene que durar de un bloque al siguiente (`memoria`, `piso`, `techo`, `db_suave`, `mostradas`, `destello`, `picos`, `conexion`…) se crea **una sola vez** a nivel de módulo, fuera de las funciones. Las funciones lo modifican "por dentro" (con `[:]` o `global`).
+Todo lo que tiene que durar de un bloque al siguiente (`memoria`, `piso`, `techo`, `db_suave`, `mostradas`, `destello`, `picos`, `conexion`, `fuente_abierta`…) se crea **una sola vez** a nivel de módulo, fuera de las funciones. Las funciones lo modifican "por dentro" (con `[:]` o `global`).
 
 | Función | Qué hace |
 |---|---|
 | `al_recibir_bloque(bloque, cantidad_muestras, tiempo, aviso)` | El callback de audio. Hace todo el recorrido de arriba para un bloque |
+| `nombre_dispositivo(fuente)` | Devuelve `DISPOSITIVO_MICROFONO` o `DISPOSITIVO_SISTEMA` según la fuente; otra fuente da `ValueError` |
+| `elegir_dispositivo(fuente)` | La llama `capturar_continuo` antes de abrir cada captura (al empezar y en cada cambio de fuente) y devuelve el número del dispositivo. En un cambio pone la memoria en ceros, `db_suave = None` y pide recalibrar. Si el dispositivo nuevo no está, vuelve `estado.fuente` a la anterior; al empezar no hay anterior y da `ValueError` |
 | `enviar_paquete(paquete)` | Guarda el paquete para el espejo de la OLED y, si hay Arduino, lo manda. Si falla, sigue sin Arduino |
 | `en_cada_vuelta()` | La llama el hilo principal: atiende los botones y, cada `INTERVALO_DIBUJO`, dibuja un cuadro. Devuelve `False` si se cerró la ventana |
 | `atender_botones()` | Lee un código de botón (si llegó) y lo aplica con `estado.aplicar_accion(codigo, "Arduino")` |
-| Bloque `__main__` | Conecta el Arduino (o sigue sin él), inicia Blynk, busca el dispositivo de audio, abre la ventana y arranca la captura. El `finally` cierra todo y muestra los paquetes por segundo |
+| Bloque `__main__` | Conecta el Arduino (o sigue sin él), inicia Blynk, abre la ventana y arranca la captura con `elegir_dispositivo`. El `finally` cierra todo y muestra los paquetes por segundo |
 
 **Lógica de `al_recibir_bloque`, en pseudocódigo:**
 
@@ -153,7 +157,7 @@ estado.publicar_audio(...)
 pausa = estado.pausa                         # se lee una sola vez
 si pasó INTERVALO_ENVIO:
     si no está en pausa, o es el primer paquete de la pausa:
-        paquete = armar_paquete(máx(mostradas, destello), fuente, nota, pausa, pico, forma_oled)
+        paquete = armar_paquete(máx(mostradas, destello), estado.fuente, nota, pausa, pico, forma_oled)
         enviar_paquete(paquete)
         pausa_enviada = (pausa == 1)
 ```
@@ -167,7 +171,7 @@ si pasó INTERVALO_ENVIO:
 | Función | Qué hace |
 |---|---|
 | `buscar_dispositivo(texto)` | Devuelve el número del primer dispositivo **de entrada** cuyo nombre contiene `texto`. Busca por nombre porque los números cambian al conectar o desconectar algo |
-| `capturar_continuo(numero, procesar_bloque, en_cada_vuelta)` | Abre un `sounddevice.InputStream` con `procesar_bloque` como callback y, mientras está abierto, llama a `en_cada_vuelta` cada ~10 ms. Termina cuando esa función devuelve `False` o con Ctrl+C |
+| `capturar_continuo(elegir_dispositivo, procesar_bloque, en_cada_vuelta)` | Le pide a `elegir_dispositivo(estado.fuente)` el número del dispositivo, abre un `sounddevice.InputStream` con `procesar_bloque` como callback y, mientras está abierto, llama a `en_cada_vuelta` cada ~10 ms. Si `estado.fuente` cambia, sale del `with` (se cierra la captura) y abre la de la fuente nueva (unos 0,15–0,2 s sin audio). Termina con `return` cuando `en_cada_vuelta` devuelve `False`, o con Ctrl+C |
 | `grabar`, `nivel_rms` | Solo para pruebas |
 
 ### bandas.py
@@ -240,9 +244,9 @@ Guarda dos cosas:
 | Función | Qué hace |
 |---|---|
 | `cambiar(campo, valor, origen)` | **Única forma de cambiar un modo.** Comprueba que el campo y el valor estén en `VALORES` (si no, `ValueError`), lo guarda, anota `ultimo_cambio` con su origen y avisa a cada función de `suscriptores` |
-| `alternar(campo, origen)` | 0 → 1 → 0 (pausa, pico, golpe, afinador) |
+| `alternar(campo, origen)` | 0 → 1 → 0 (pausa, pico, golpe, afinador y fuente: `MODO_MIC` = 0, `MODO_LINE` = 1) |
 | `siguiente(campo, origen)` | Pasa al valor siguiente de la lista y vuelve al primero (velocidad, forma, color) |
-| `aplicar_accion(codigo, origen)` | Traduce un código de botón (1 a 4) en `siguiente("velocidad")` o `alternar(...)`. La usan el Arduino y Blynk |
+| `aplicar_accion(codigo, origen)` | Traduce un código de botón (1 a 4) en `siguiente("velocidad")` o `alternar(...)`. La usan los botones del Arduino |
 | `pedir_recalibracion(origen)` | Levanta `pedido_recalibrar`; el callback de audio lo atiende en el próximo bloque |
 | `publicar_audio(...)` | Reemplaza `audio` entero con copias (ver [Los dos hilos](#los-dos-hilos)) |
 | `publicar_paquete(paquete, picos)` | Guarda el último paquete para el espejo de la OLED |
@@ -278,7 +282,7 @@ Guarda dos cosas:
 
 ### blynk_cliente.py
 
-Esqueleto vacío: `iniciar()` devuelve `False` y `avisar_cambio(campo, valor, origen)` no hace nada. Está enganchado como suscriptor de `estado`, así que al implementarlo recibe todos los cambios. Ver [diseno.md → App en Blynk](diseno.md#app-en-blynk).
+Usa `BlynkLib` y lee el token `BLYNK_AUTH_TOKEN` del `.env`. `iniciar()` arranca el hilo `bucle()` (o devuelve `False` si no hay token). Ese hilo conecta con `blynk.cloud`, registra un handler por pin de `PINES` y, en cada vuelta, manda lo que quedó en la cola `pendientes` y escucha a Blynk; si se corta, espera `ESPERA_RECONEXION` (5 s) y reconecta. `al_conectar()` encola el estado completo, `al_recibir()` convierte el valor de la app (índice para forma y color) y llama a `estado.cambiar(..., "Blynk")`, y `avisar_cambio()` (suscriptor de `estado`) encola cada cambio que no vino de Blynk. Los campos que no están en `PINES`, como `fuente`, se ignoran. Ver [diseno.md → App en Blynk](diseno.md#app-en-blynk).
 
 ### configuracion.py
 

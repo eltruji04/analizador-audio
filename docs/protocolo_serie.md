@@ -36,7 +36,7 @@ Al entrar en pausa, la compu manda **un último paquete con pausa = 1** y despu�
 
 ### Fuente de audio (byte 17)
 
-La OLED muestra `MIC` o `LINE` según este byte, y los dos LEDs de la caja de control se alternan con él: siempre hay uno solo encendido. Hoy la fuente se elige antes de iniciar (`FUENTE_AUDIO` en `configuracion.py`), así que el byte no cambia durante la ejecución.
+La OLED muestra `MIC` o `LINE` según este byte, y los dos LEDs de la caja de control se alternan con él: siempre hay uno solo encendido. La compu arranca con `FUENTE_AUDIO` (en `configuracion.py`) y la fuente se puede cambiar con el programa andando (tecla `I` o panel): el byte cambia desde el paquete siguiente.
 
 ### Marca de pico (byte 20)
 
@@ -91,7 +91,7 @@ Cada vez que se **aprieta** un botón (no mientras está apretado, y con antirre
 | `4` | Golpe | Prende o apaga el efecto de golpe en las barras |
 
 - El byte dice **qué botón se apretó**, no el estado nuevo. La compu es la única dueña del estado: cambia el valor (`estado.aplicar_accion` en `pc/estado.py`) y lo refleja en el paquete, en el visualizador y en Blynk. El Arduino no cambia nada por su cuenta.
-- Blynk pide los mismos cambios con los mismos códigos.
+- Blynk no usa estos códigos: pide cada cambio por campo con `estado.cambiar` (ver [diseno.md → App en Blynk](diseno.md#app-en-blynk)).
 - El Arduino tiene que usar `Serial.write(codigo)`, nunca `Serial.print`: `print` manda el carácter `'1'`, que es el byte `49`.
 - Los botones siguen funcionando durante la pausa: este canal es independiente del paquete.
 - La compu lee un byte cada ~10 ms con `leer_boton` (`pc/serie.py`), sin quedarse esperando.

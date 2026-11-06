@@ -24,7 +24,7 @@ Guía detallada para preparar el entorno en macOS y Linux. El resumen está en e
 - **Arduino IDE** para cargar el firmware en el Uno, con las librerías *Adafruit SSD1306* y *Adafruit GFX Library* (ver [Firmware del Arduino](#firmware-del-arduino)).
 - **VS Code** (recomendado) con la extensión *Python* de Microsoft.
 
-Las dependencias de Python están en [`requirements.txt`](../requirements.txt): `numpy`, `sounddevice`, `pyserial`, `pygame-ce` y `requests` (más las que estas usan).
+Las dependencias de Python están en [`requirements.txt`](../requirements.txt): `numpy`, `sounddevice`, `pyserial`, `pygame-ce`, `blynk-library-python` y `python-dotenv` (más las que estas usan).
 
 ---
 
@@ -118,12 +118,12 @@ Cómo elegir esa fuente desde `sounddevice` (qué texto poner en `DISPOSITIVO_SI
 Con el entorno virtual activado:
 
 ```bash
-python -c "import numpy, sounddevice, serial, requests, pygame; print('ok')"
+python -c "import numpy, sounddevice, serial, pygame, BlynkLib, dotenv; print('ok')"
 python -m sounddevice                # lista los dispositivos de audio
 python -m serial.tools.list_ports    # lista los puertos serie
 ```
 
-- La primera línea tiene que imprimir `ok` (pygame además imprime su versión).
+- La primera línea tiene que imprimir `ok` (pygame y Blynk además imprimen su versión).
 - En macOS, la lista de audio tiene que incluir **BlackHole 2ch** y el **dispositivo de salida múltiple**.
 - Con el Arduino conectado, debería aparecer un puerto nuevo. Nombres probables:
   - macOS: `/dev/cu.usbmodem…` (Uno original) o `/dev/cu.usbserial…` (clon con chip CH340).
@@ -142,8 +142,8 @@ Todos los parámetros están en [`pc/configuracion.py`](../pc/configuracion.py).
 | Parámetro | Para qué |
 |---|---|
 | `PUERTO_SERIE` | Puerto del Arduino. Cambia según la computadora y el puerto USB: verlo con `python -m serial.tools.list_ports`. |
-| `FUENTE_AUDIO` | Fuente que se usa al iniciar: `MODO_LINE` (audio del sistema) o `MODO_MIC` (micrófono). Hoy no se puede cambiar con el programa andando. |
-| `DISPOSITIVO_SISTEMA`, `DISPOSITIVO_MICROFONO` | Parte del nombre de los dispositivos de audio (se buscan por nombre, no por número). |
+| `FUENTE_AUDIO` | Fuente con la que arranca: `MODO_LINE` (audio del sistema) o `MODO_MIC` (micrófono). Después se cambia con la tecla `I` o el panel. |
+| `DISPOSITIVO_SISTEMA`, `DISPOSITIVO_MICROFONO` | Parte del nombre de los dispositivos de audio (se buscan por nombre, no por número). Son los dos entre los que se alterna al cambiar la fuente. |
 
 Para ajustar el comportamiento:
 

@@ -28,7 +28,7 @@ Proyecto final del **Taller de Introducción a la Ingeniería Eléctrica (Taller
 
 ## Descripción
 
-Un programa en Python captura el audio de la computadora (el micrófono o lo que suena en ella), lo divide en 16 bandas de frecuencia y le manda las alturas de las barras a un Arduino Uno, que las dibuja en una OLED de 128×32. Los modos de visualización se controlan desde la ventana de la computadora, desde una caja con botones físicos y, más adelante, desde una app de **Blynk**.
+Un programa en Python captura el audio de la computadora (el micrófono o lo que suena en ella), lo divide en 16 bandas de frecuencia y le manda las alturas de las barras a un Arduino Uno, que las dibuja en una OLED de 128×32. Los modos de visualización se controlan desde la ventana de la computadora, desde una caja con botones físicos y desde una app de **Blynk**.
 
 El objetivo del proyecto:
 
@@ -37,7 +37,7 @@ El objetivo del proyecto:
 **Características:**
 
 - **Análisis de espectro en tiempo real:** FFT de 16 bandas entre 40 Hz y 20 kHz, con calibración automática para que se vea bien con música fuerte o suave, y recalibración manual.
-- **Dos fuentes de audio:** el micrófono o lo que suena en la propia computadora.
+- **Dos fuentes de audio:** el micrófono o lo que suena en la propia computadora, y se puede pasar de una a otra con el programa andando.
 - **Modos combinables:** forma (barras, desde el centro, onda o espectrograma) × color (fijo, arcoíris o según la nota que suena). La OLED muestra barras o desde el centro; con onda y espectrograma, muestra barras.
 - **Efectos:** marca de pico, destello con cada golpe del bombo y tres velocidades de caída de las barras.
 - **Control desde tres lugares sincronizados:** la ventana de la computadora, los botones de la caja y la app de Blynk. La computadora es la única dueña del estado.
@@ -48,7 +48,7 @@ El objetivo del proyecto:
 
 | Parte | Tecnología |
 |---|---|
-| Programa de la computadora | **Python 3.14** con `numpy` (FFT), `sounddevice` (captura de audio), `pyserial` (puerto serie), `pygame-ce` (visualizador) y `requests` (Blynk) |
+| Programa de la computadora | **Python 3.14** con `numpy` (FFT), `sounddevice` (captura de audio), `pyserial` (puerto serie), `pygame-ce` (visualizador), `blynk-library-python` y `python-dotenv` (Blynk) |
 | Firmware | **Arduino (C++)** con las librerías *Adafruit SSD1306* y *Adafruit GFX* |
 | App | **Blynk** |
 | Audio del sistema | **BlackHole** en macOS; fuente "monitor" de PulseAudio/PipeWire en Linux |
@@ -96,8 +96,9 @@ Se abre la ventana del visualizador y empieza el análisis. Si encuentra el Ardu
 | `C` | Color: fijo → arcoíris → por nota |
 | `A` | Afinador en la tarjeta de nota |
 | `R` | Recalibrar piso y techo desde lo que suena ahora |
+| `I` | Fuente de audio: micrófono (`MIC`) ↔ sistema (`LINE`) |
 
-El color fijo se elige con las muestras del panel.
+El color fijo se elige con las muestras del panel, y la fuente también con sus botones `MIC` | `LINE`.
 
 **Desde la caja de control:**
 
@@ -108,13 +109,14 @@ El color fijo se elige con las muestras del panel.
 | 3 | Marca de pico |
 | 4 | Efecto de golpe |
 
-La fuente de audio (micrófono o sistema) se elige antes de iniciar con `FUENTE_AUDIO` en [`pc/configuracion.py`](pc/configuracion.py). Ahí están también el puerto serie, los dispositivos de audio y la calibración: ver [Configuración](docs/instalacion.md#configuración).
+La fuente de audio con la que arranca (micrófono o sistema) se elige con `FUENTE_AUDIO` en [`pc/configuracion.py`](pc/configuracion.py); después se cambia con la tecla `I` o el panel. Al cambiarla, el programa cierra la captura, abre el otro dispositivo (`DISPOSITIVO_MICROFONO` o `DISPOSITIVO_SISTEMA`) y recalibra. Si ese dispositivo no está, sigue con la fuente anterior. En [`pc/configuracion.py`](pc/configuracion.py) están también el puerto serie, los dispositivos de audio y la calibración: ver [Configuración](docs/instalacion.md#configuración).
 
 ## Roadmap
 
 **Hecho**
 
 - [x] Captura de audio del micrófono o del sistema (BlackHole), elegido por nombre de dispositivo
+- [x] Cambiar la fuente de audio en vivo (tecla `I` o panel)
 - [x] FFT de 16 bandas con ventana deslizante de 4096 muestras
 - [x] Calibración automática por banda y recalibración manual (tecla `R`)
 - [x] Suavizado de barras con tres velocidades de caída y marca de pico
@@ -123,15 +125,15 @@ La fuente de audio (micrófono o sistema) se elige antes de iniciar con `FUENTE_
 - [x] Estado único compartido entre la ventana, el Arduino y Blynk
 - [x] Visualizador: 4 formas, 3 modos de color, espejo de la OLED y panel de control
 - [x] Firmware: barras, marca de pico, MIC/LINE, nota y pausa en la OLED; botones con antirrebote
+- [x] Firmware: leer el byte 21 del paquete y dibujar las barras desde el centro
 - [x] El programa sigue funcionando sin Arduino o si se desconecta
+- [x] Conexión con Blynk: controles sincronizados con la app y reconexión automática (`pc/blynk_cliente.py`)
 
 **Por hacer**
 
 - [ ] Estimación de la nota y afinador (`pc/nota.py`)
-- [ ] Conexión con Blynk y tablero de registro de uso (`pc/blynk_cliente.py`)
-- [ ] Firmware: leer el byte 21 del paquete y dibujar las barras desde el centro
+- [ ] Tablero de registro de uso en Blynk, y la fuente de audio como control de la app
 - [ ] Firmware: LEDs indicadores de la fuente de audio (micrófono / sistema)
-- [ ] Cambiar la fuente de audio en vivo (hoy se elige antes de iniciar)
 - [ ] Probar la detección de golpe con música real
 - [ ] Probar la instalación en Linux
 - [ ] Armar la caja de control
@@ -145,12 +147,12 @@ analizador-audio/
 │   ├── principal.py            # Punto de entrada: captura, análisis, envío y visualizador
 │   ├── configuracion.py        # Todos los parámetros del programa
 │   ├── estado.py               # Estado compartido (modos, pausa, pico…) y últimos resultados
-│   ├── captura.py              # Captura de audio con sounddevice
+│   ├── captura.py              # Captura de audio con sounddevice; reabre al cambiar la fuente
 │   ├── bandas.py               # FFT por bandas, calibración, suavizado y picos
 │   ├── golpe.py                # Detección de golpes del bombo
 │   ├── nota.py                 # Estimación de la nota (pendiente)
 │   ├── serie.py                # Paquete al Arduino y lectura de botones
-│   ├── blynk_cliente.py        # Conexión con Blynk (pendiente)
+│   ├── blynk_cliente.py        # Conexión con Blynk (hilo propio)
 │   ├── visualizador.py         # Ventana: eventos, teclas y bucle de dibujo
 │   ├── dibujo.py               # Dibujo de cada zona de la ventana
 │   └── colores.py              # Paleta y color de cada banda

@@ -30,18 +30,19 @@ Música ──► Computadora (Python)
 
 - **Computadora:** hace todo el procesamiento de audio, dibuja el visualizador y se conecta a Blynk. Le manda al Arduino un paquete con las alturas de las barras, la fuente de audio, la nota, la pausa, la marca de pico y la forma ([protocolo_serie.md](protocolo_serie.md)).
 - **Arduino Uno:** dibuja la OLED, enciende los LEDs y lee los botones. Por cada botón apretado le manda a la computadora un byte con su código; no cambia nada por su cuenta.
-- **Blynk:** se conecta **desde la computadora**, no desde la placa, usando su API HTTP **[SIN VERIFICAR: que permita leer y escribir los valores de la app desde Python, y qué incluye el plan gratuito]**. Necesita internet.
+- **Blynk:** se conecta **desde la computadora**, no desde la placa, con la librería `blynk-library-python` (`BlynkLib`) contra `blynk.cloud`, en un hilo propio. Necesita internet; sin conexión, el resto del programa sigue igual.
 
 ### Estado compartido
 
-La computadora es la **única dueña del estado** (velocidad de caída, pausa, pico, golpe, afinador, forma, color, color fijo), que vive en [`pc/estado.py`](../pc/estado.py). La ventana, los botones del Arduino y Blynk solo **piden** cambios, siempre con `estado.cambiar()` (o `estado.aplicar_accion()` para los códigos de botón). Así nunca hay dos versiones del modo actual.
+La computadora es la **única dueña del estado** (velocidad de caída, pausa, pico, golpe, afinador, forma, color, color fijo y fuente de audio), que vive en [`pc/estado.py`](../pc/estado.py). La ventana, los botones del Arduino y Blynk solo **piden** cambios, siempre con `estado.cambiar()` (o `estado.aplicar_accion()` para los códigos de botón). Así nunca hay dos versiones del modo actual.
 
 Cada cambio queda anotado con su origen (`compu`, `Arduino` o `Blynk`), se muestra en el encabezado del visualizador y se avisa a los suscriptores (ahí se engancha Blynk). El cambio llega a la OLED con el próximo paquete.
 
 ### Hilos
 
 - **Hilo de audio** (callback de `sounddevice`): analiza cada bloque, publica los resultados en `estado.audio` y manda el paquete al Arduino.
-- **Hilo principal:** lee los botones del Arduino (~100 veces por segundo) y dibuja el visualizador (~30 cuadros por segundo). En macOS la ventana solo se puede manejar desde este hilo.
+- **Hilo principal:** lee los botones del Arduino (~100 veces por segundo) y dibuja el visualizador (~30 cuadros por segundo). En macOS la ventana solo se puede manejar desde este hilo. También es el que cierra y vuelve a abrir la captura cuando cambia la fuente.
+- **Hilo de Blynk** ([`blynk_cliente.py`](../pc/blynk_cliente.py)): mantiene la conexión con la app, manda los cambios de la compu y aplica los que llegan de la app. Si se corta, reintenta cada 5 s.
 
 ### Entrada de audio
 
@@ -50,7 +51,9 @@ Cada cambio queda anotado con su origen (`compu`, `Arduino` o `Blynk`), se muest
 | Micrófono (`MIC`) | El micrófono de la computadora |
 | Línea (`LINE`) | El audio que reproduce la propia computadora. En macOS se captura con BlackHole; en Linux, con la fuente "monitor" de PulseAudio/PipeWire **[SIN VERIFICAR]** |
 
-Hoy la fuente se elige **antes de iniciar**, con `FUENTE_AUDIO` en `configuracion.py`, y se informa al Arduino en el byte 17 del paquete. La idea es poder cambiarla **en vivo**.
+El programa arranca con la fuente de `FUENTE_AUDIO` en `configuracion.py` y se puede cambiar **en vivo** con la tecla `I` o los botones `MIC` | `LINE` del panel. Siempre se elige entre los dos dispositivos de `configuracion.py` (`DISPOSITIVO_MICROFONO` y `DISPOSITIVO_SISTEMA`), no un dispositivo cualquiera. La fuente actual se informa al Arduino en el byte 17 del paquete.
+
+Al cambiarla, el programa cierra la captura y abre el otro dispositivo (el audio se corta unos 0,15–0,2 s). Además descarta lo que quedaba de la fuente anterior (la ventana deslizante y el promedio de dB) y recalibra, porque el micrófono y la línea tienen niveles muy distintos. Si el dispositivo nuevo no está, vuelve a la fuente anterior.
 
 Si el Arduino no está conectado al iniciar, o se desconecta en el medio, el programa sigue funcionando sin enviar.
 
@@ -124,21 +127,24 @@ El color solo existe en la computadora: la OLED es monocromática. En espectrogr
 
 ## App en Blynk
 
-**Todavía no implementada:** [`pc/blynk_cliente.py`](../pc/blynk_cliente.py) tiene las funciones vacías, pero el resto del programa ya está listo para usarla:
+La conexión está en [`pc/blynk_cliente.py`](../pc/blynk_cliente.py):
 
-- `principal.py` llama a `blynk_cliente.iniciar()` al arrancar.
-- `estado.py` llama a `blynk_cliente.avisar_cambio()` después de cada cambio, para que la app muestre el estado actual (salvo que el cambio haya venido de Blynk).
-- Cuando el usuario toque algo en la app, el módulo tiene que llamar a `estado.aplicar_accion(codigo, "Blynk")` (los mismos códigos que los botones) o a `estado.cambiar(campo, valor, "Blynk")`.
+- `principal.py` llama a `blynk_cliente.iniciar()` al arrancar, que arranca el hilo de Blynk (si no hay token, devuelve `False` y el programa sigue sin Blynk).
+- Al conectarse le manda a la app el estado completo: la compu es la dueña y la app tiene que mostrar lo que hay ahora.
+- `estado.py` llama a `blynk_cliente.avisar_cambio()` después de cada cambio, para que la app muestre el estado actual (salvo que el cambio haya venido de Blynk). El valor queda en una cola y lo manda el hilo de Blynk, que es el único que usa la conexión.
+- Cuando el usuario toca algo en la app, el módulo llama a `estado.cambiar(campo, valor, "Blynk")`.
+
+Cada campo va en un pin virtual: `V0` velocidad, `V1` pausa, `V2` pico, `V3` golpe, `V4` afinador, `V5` forma, `V6` color y `V7` color fijo. La forma y el color viajan como índice de su lista (`FORMAS` y `MODOS_COLOR`).
 
 Contenido previsto:
 
-- **Controles:** pausa, marca de pico, golpe, velocidad de caída, forma, color y fuente de audio.
+- **Controles:** pausa, marca de pico, golpe, velocidad de caída, afinador, forma, color y color fijo (hechos). La fuente de audio todavía no tiene pin.
 - **Tablero de registro de uso** (pauta mínima).
 - **Opcional:** guardar conjuntos de efectos.
 
 ### Token de Blynk
 
-El token es una clave privada y **nunca se sube al repositorio**, aunque sea privado: queda en el historial de Git. Cada integrante lo guarda en un archivo `.env` en la raíz del proyecto (ya incluido en `.gitignore`) **[A CONFIRMAR: formato del archivo y cómo se lee desde Python, cuando se programe `blynk_cliente.py`]**.
+El token es una clave privada y **nunca se sube al repositorio**. Cada integrante lo guarda en un archivo `.env` en la raíz del proyecto (ya incluido en `.gitignore`), con una línea `BLYNK_AUTH_TOKEN=<token>`. `blynk_cliente.py` lo lee con `python-dotenv` (`load_dotenv()`).
 
 ---
 
@@ -152,7 +158,7 @@ Es parte del producto, no solo una herramienta de prueba. Es una ventana de **12
 | Espectro | Las 16 bandas en la forma y el color elegidos, con altura continua (no en escalones), etiquetas de frecuencia y tiras de golpe a los costados |
 | Espejo de la OLED | Réplica de lo que muestra la OLED, dibujada a partir del **mismo paquete** que se manda al Arduino, con sus bytes debajo. Funciona aunque no haya Arduino |
 | Nota / afinador | La nota grande con la tira de 12 notas o, con el afinador activo, el afinador |
-| Panel de control | Fuente (solo lectura), velocidad de caída, pausa, pico, golpe, afinador, forma, color, muestras de color fijo y atajos de teclado |
+| Panel de control | Fuente (`MIC` \| `LINE`), velocidad de caída, pausa, pico, golpe, afinador, forma, color, muestras de color fijo y atajos de teclado |
 | Pie | Cuadros por segundo reales |
 
 Los clics y las teclas cambian el estado con `estado.cambiar(..., "compu")`, la misma función que usan los botones y Blynk. Las teclas están en el [README](../README.md#uso).
@@ -170,7 +176,7 @@ Cada vez que llega un bloque de audio (1024 muestras a 48 kHz, unos 21 ms), `pri
 3. **FFT por bandas:** aplica una ventana de Hann, calcula el espectro y suma la energía de las 16 bandas, entre 40 Hz y 20 kHz, repartidas en escala logarítmica.
 4. **Decibeles:** pasa cada energía a dB (el silencio da −120 dB).
 5. **Promedio entre bloques:** mezcla los dB nuevos con los anteriores (`PROMEDIO_DB` = 0,7) para que el ruido de los graves no salte de un bloque al otro.
-6. **Recalibración** (solo si se apretó `R`): pone el techo de cada banda `RECALIBRAR_MARGEN_DB` por encima de lo que suena y el piso `RECALIBRAR_RANGO_DB` por debajo del techo, y borra los picos.
+6. **Recalibración** (solo si se apretó `R` o se cambió la fuente): pone el techo de cada banda `RECALIBRAR_MARGEN_DB` por encima de lo que suena y el piso `RECALIBRAR_RANGO_DB` por debajo del techo, y borra los picos.
 7. **Calibración automática:** cada banda tiene un piso y un techo que se ajustan solos con la música. El techo sube enseguida y baja muy despacio; el piso se mueve despacio en las dos direcciones, así el ruido de fondo queda por debajo. La distancia entre los dos queda entre 12 y 50 dB, y ningún techo queda a más de 35 dB del más alto.
 8. **Alturas:** convierte los dB en una altura entre 0 (en el piso) y 32 (en el techo).
 9. **Suavizado y picos:** las barras suben enseguida y bajan según la velocidad de caída elegida; la marca de pico baja más despacio (`CAIDA_PICO`).

@@ -47,7 +47,8 @@ blynk_conectado = False
 ultimo_cambio = ("Inicio", None, time.monotonic())
 
 # Funciones que se llaman después de cada cambio, con (campo, valor, origen).
-# Ahí se va a enganchar Blynk para enterarse de los cambios de los demás.
+# Ahí está enganchado Blynk (blynk_cliente.avisar_cambio) para enterarse de
+# los cambios de los demás.
 suscriptores = []
 
 # True = se pidió recalibrar y el callback de audio todavía no lo atendió.
@@ -138,7 +139,8 @@ def siguiente(campo, origen):
 def aplicar_accion(codigo, origen="Arduino"):
     """
     Aplica la acción del botón con código `codigo` (1 a 4, ver los
-    BOTON_* de configuracion). La usan los botones del Arduino y Blynk.
+    BOTON_* de configuracion). La usan los botones del Arduino; Blynk
+    cambia cada campo directamente con cambiar().
 
     El código dice qué botón se apretó, no el valor nuevo: la velocidad
     pasa a la siguiente (y vuelve a 0 después de la última) y pausa, pico

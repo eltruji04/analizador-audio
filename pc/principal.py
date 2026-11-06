@@ -317,7 +317,7 @@ if __name__ == "__main__":
 
     # Blynk se entera de cada cambio, venga de donde venga.
     if not blynk_cliente.iniciar():
-        print("Blynk sin conectar (falta implementar blynk_cliente.py)")
+        print("Blynk sin conectar: falta BLYNK_AUTH_TOKEN en el .env")
     estado.suscriptores.append(blynk_cliente.avisar_cambio)
 
     # Se empieza a medir después de conectar(), para que los paquetes por

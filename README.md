@@ -42,7 +42,7 @@ El objetivo del proyecto:
 - **Efectos:** marca de pico, destello con cada golpe del bombo y tres velocidades de caída de las barras.
 - **Control desde tres lugares sincronizados:** la ventana de la computadora, los botones de la caja y la app de Blynk. La computadora es la única dueña del estado.
 - **Visualizador en la computadora:** el espectro en alta resolución, un espejo de la OLED y un panel de control.
-- **Funciona sin Arduino:** si no está conectado (o se desconecta), el análisis y el visualizador siguen andando.
+- **Funciona sin Arduino:** si no está conectado (o se desconecta), el análisis y el visualizador siguen andando, y al enchufarlo en cualquier puerto USB se conecta solo.
 
 ## Stack tecnológico
 
@@ -126,7 +126,7 @@ La fuente de audio con la que arranca (micrófono o sistema) se elige con `FUENT
 - [x] Visualizador: 4 formas, 3 modos de color, espejo de la OLED y panel de control
 - [x] Firmware: barras, marca de pico, MIC/LINE, nota y pausa en la OLED; botones con antirrebote
 - [x] Firmware: leer el byte 21 del paquete y dibujar las barras desde el centro
-- [x] El programa sigue funcionando sin Arduino o si se desconecta
+- [x] El programa sigue funcionando sin Arduino o si se desconecta, y lo reconecta solo en cualquier puerto USB
 - [x] Conexión con Blynk: controles sincronizados con la app y reconexión automática (`pc/blynk_cliente.py`)
 
 **Por hacer**

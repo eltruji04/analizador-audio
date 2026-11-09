@@ -82,7 +82,36 @@ CAIDA_PICO = 0.25   # píxeles que baja la marca de pico por bloque (~12 px/s): 
 
 # --- Notas ---
 NOMBRES_NOTAS = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"]
-MARGEN_AFINADO_CENTS = 5   # el afinador marca en verde dentro de ±5 cents
+MARGEN_AFINADO_CENTS = 5        # el afinador marca en verde dentro de ±5 cents
+LA_REFERENCIA = 440             # Hz del A4; todas las notas se calculan desde acá
+NOTA_FRECUENCIA_MINIMA = 60     # nota mas grave que busca (B1)
+NOTA_FRECUENCIA_MAXIMA = 1000   # nota mas aguda que busca (B5)
+NOTA_UMBRAL_CLARIDAD = 0.15     # Por encima de esto, “sin nota”
+NOTA_VOLUMEN_MINIMO_DB = -60    # Por debajo, silencio
+CROMA_FRECUENCIA_MINIMA = 130   # Hz: debajo, cada valor de la FFT abarca más de un semitono
+CROMA_FRECUENCIA_MAXIMA = 2000  # Hz: arriba casi no hay notas, solo armónicos y platillos
+PROMEDIO_CROMA = 0.85           # Mezcla el croma anterior con el nuevo, evita el parpadeo
+# Parte mínima de la nota más fuerte en la croma promediada (en potencia)
+# para que haya nota.
+CROMA_MINIMA = 0.19
+CROMA_ESPERA_SIN_NOTA = 47      # bloques con la croma plana (~1 s) antes de apagar la nota
+# Plantillas de acordes (ver nota.py): cada una suma sus 3 notas con sus
+# armónicos. Medido con guitarra simulada: raíz correcta 94–99% (la nota
+# más fuerte daba 28–36%: mostraba la quinta, G en un C).
+CROMA_DECAIMIENTO_ARMONICOS = 0.6   # amplitud de cada armónico respecto del anterior
+CROMA_PESO_RAIZ = 1.3               # la raíz pesa más que la tercera y la quinta
+# Puntaje que la raíz nueva le tiene que sacar a la actual para reemplazarla.
+# Los puntajes van de 0 a 1 y están cerca entre sí (0,8–0,95): sin margen
+# daba 23 cambios para 7 reales con ruido; con 0,03, 15.
+CROMA_MARGEN_CAMBIO = 0.03
+# Bloques seguidos (~0,2 s) que la raíz nueva tiene que liderar (con el
+# margen) para reemplazar a la actual.
+CROMA_BLOQUES_CAMBIO = 5
+# Lados del estéreo ((izquierdo − derecho) / 2) respecto de la mezcla, en dB.
+# Por encima, el modo nota usa los lados y así ignora la voz, que va al
+# centro.
+CROMA_UMBRAL_LADOS_DB = -20
+PROMEDIO_AFINADOR = 0.8         # Peso de la frecuencia anterior en el afinador
 
 # --- Visualizador en la compu ---
 ANCHO_VENTANA = 1280          # tamaño fijo de la ventana, en píxeles

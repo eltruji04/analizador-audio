@@ -56,6 +56,8 @@ n = configuracion.TAMANO_VENTANA
 ventana, mascaras = bandas.preparar_analisis(n, fs)
 # Últimas n muestras de audio (mono). Empieza en silencio (ceros).
 memoria = numpy.zeros(n)
+# Últimas n muestras de los "lados" del estéreo
+memoria_lados = numpy.zeros(n)
 # Piso y techo de cada banda, en dB. Se ajustan solos con la música.
 piso, techo = bandas.niveles_iniciales()
 # Nivel de cada banda (dB) promediado entre bloques. None hasta el primer
@@ -125,6 +127,12 @@ def al_recibir_bloque(bloque, cantidad_muestras, tiempo, aviso):
     memoria[:n-m] = memoria[m:]
     # …y el bloque nuevo ocupa las últimas m posiciones.
     memoria[-m:] = mono
+    # Lo mismo con los lados del estéreo (si el dispositivo tiene 2 canales o más).
+    memoria_lados[:n-m] = memoria_lados[m:]
+    if bloque.ndim == 2 and bloque.shape[1] >= 2:
+        memoria_lados[-m:] = (bloque[:, 0] - bloque[:, 1]) / 2
+    else:
+        memoria_lados[-m:] = 0
 
     energias = bandas.calcular_bandas(memoria, ventana, mascaras)
 
@@ -170,7 +178,7 @@ def al_recibir_bloque(bloque, cantidad_muestras, tiempo, aviso):
 
     # Nota fundamental (byte 18 del paquete) y, para el afinador, su
     # frecuencia y el desvío en cents.
-    numero_nota, frecuencia, cents = nota.estimar(memoria, fs)
+    numero_nota, frecuencia, cents = nota.estimar(memoria, fs, estado.afinador, memoria_lados)
     # Todo lo que dibuja el visualizador, de una sola vez.
     estado.publicar_audio(mostradas, destello, picos, numero_nota, frecuencia, cents, momento_golpe)
 
@@ -240,6 +248,7 @@ def elegir_dispositivo(fuente):
     # el audio de la ventana deslizante, el promedio de dB y la calibración.
     if fuente_abierta is not None and fuente != fuente_abierta:
         memoria[:] = 0
+        memoria_lados[:] = 0
         db_suave = None
         estado.pedido_recalibrar = True
     fuente_abierta = fuente

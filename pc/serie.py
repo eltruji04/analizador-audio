@@ -10,6 +10,7 @@ que cambiar a la vez este archivo y el código del Arduino.
 """
 
 import serial
+from serial.tools import list_ports
 import time
 import configuracion
 
@@ -76,6 +77,17 @@ def leer_boton(conexion):
         return dato[0]
     else:
         return None
+
+def buscar_puerto():
+    """
+    Devuelve el nombre del puerto donde está enchufado el Arduino Uno
+    buscándolo por su VID:PID.
+    Si no lo encuentra, devuelve PUERTO_SERIE como plan B.
+    """
+    for puerto in list_ports.comports():
+        if puerto.vid == configuracion.VID_ARDUINO and puerto.pid == configuracion.PID_ARDUINO:
+            return puerto.device
+    return configuracion.PUERTO_SERIE
 
 # Pruebas sin Arduino: solo se ejecutan con `python pc/serie.py`.
 if __name__ == "__main__":

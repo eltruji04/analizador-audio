@@ -36,6 +36,7 @@ Por qué una ventana deslizante:
 import numpy
 import serial
 import time
+import threading
 import configuracion
 import captura
 import bandas
@@ -247,12 +248,57 @@ def elegir_dispositivo(fuente):
     return numero
 
 
+def vigilar_arduino():
+    """
+    Corre en un hilo aparte durante todo el programa. Mientras no haya
+    Arduino conectado intenta abrir el puerto.
+
+    conectar() espera 2 s a que el Uno arranque: por eso va en un hilo,
+    para no congelar la ventana ni el audio.
+    """
+    global conexion, pausa_enviada
+    while True:
+        if conexion is None:
+            try:
+                puerto = serie.buscar_puerto()
+                nueva = serie.conectar(puerto)
+                # El Uno se reinició al abrir el puerto y no sabe que
+                # estamos en pausa: se le vuelve a mandar el paquete de pausa.
+                pausa_enviada = False
+                conexion = nueva
+                estado.arduino_conectado = True
+                print(f"Arduino conectado en {puerto}")
+            except serial.SerialException:
+                # No está enchufado o el Monitor Serie lo tiene ocupado:
+                # se reintenta en la próxima vuelta, sin imprimir nada.
+                pass
+        time.sleep(configuracion.INTERVALO_BUSQUEDA)
+
+def perder_arduino():
+    """
+    Se llama cuando falla un envío o una lectura: el Arduino se
+    desconectó. Cierra el puerto viejo y deja conexion en None para que
+    vigilar_arduino() lo vuelva a buscar.
+    """
+    global conexion
+    vieja = conexion
+    conexion = None
+    estado.arduino_conectado = False
+    print("Se desconectó el Arduino: lo sigo buscando")
+    if vieja is not None:
+        try:
+            vieja.close()
+        except OSError:
+            # El dispositivo ya no existe; no importa si no se puede cerrar.
+            pass
+
+
 def enviar_paquete(paquete):
     """
     Guarda el paquete para el espejo de la OLED y, si hay Arduino, lo
     manda. Si el Arduino se desconecta en el medio, se sigue sin él.
     """
-    global conexion, envios
+    global envios
     estado.publicar_paquete(paquete, picos)
     if conexion is None:
         return
@@ -260,9 +306,7 @@ def enviar_paquete(paquete):
         serie.enviar(conexion, paquete)
         envios += 1
     except OSError:
-        print("Se desconectó el Arduino: sigo sin enviar")
-        conexion = None
-        estado.arduino_conectado = False
+        perder_arduino()
 
 def en_cada_vuelta():
     """
@@ -284,15 +328,12 @@ def atender_botones():
     La llama en_cada_vuelta(). Sin Arduino no hace nada. Si el
     Arduino se desconecta, se sigue sin él.
     """
-    global conexion
     if conexion is None:
         return
     try:
         codigo = serie.leer_boton(conexion)
     except OSError:
-        print("Se desconectó el Arduino: sigo sin enviar")
-        conexion = None
-        estado.arduino_conectado = False
+        perder_arduino()
         return
     if codigo is not None:
         estado.aplicar_accion(codigo, "Arduino")
@@ -303,26 +344,18 @@ def atender_botones():
 
 # Solo se ejecuta con `python pc/principal.py`, no al importar el módulo.
 if __name__ == "__main__":
-    # Se intenta abrir el puerto del Arduino. Si no está enchufado (o el
-    # Monitor Serie del IDE lo tiene ocupado), se sigue sin enviar en vez
-    # de cortar el programa.
-    try:
-        conexion = serie.conectar(configuracion.PUERTO_SERIE)
-        estado.arduino_conectado = True
-        print("Arduino conectado")
-    except serial.SerialException:
-        print("No se encontró el Arduino: sigo sin enviar")
-        # El visualizador muestra "Arduino: desconectado" y el espejo de la
-        # OLED sigue andando con los paquetes que se habrían enviado.
+    # Un hilo busca el Arduino todo el tiempo: si no está enchufado al
+    # arrancar, o se desconecta en el medio, se conecta solo al enchufarlo.
+    print("Buscando el Arduino…")
+    threading.Thread(target=vigilar_arduino, daemon=True).start()
 
     # Blynk se entera de cada cambio, venga de donde venga.
     if not blynk_cliente.iniciar():
         print("Blynk sin conectar: falta BLYNK_AUTH_TOKEN en el .env")
     estado.suscriptores.append(blynk_cliente.avisar_cambio)
 
-    # Se empieza a medir después de conectar(), para que los paquetes por
-    # segundo no incluyan su espera de 2 s. Va antes del `try` para que
-    # `inicio` exista aunque se apriete Ctrl+C enseguida.
+    # Los paquetes por segundo cuentan todo el tiempo, incluso el que estuvo desenchufado.
+    # Va antes del try para que inicio exista aunque se apriete Ctrl+C enseguida.
     inicio = time.monotonic()
     try:
         visualizador.iniciar()

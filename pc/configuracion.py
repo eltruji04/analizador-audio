@@ -5,8 +5,9 @@ Todos los módulos leen de acá los valores fijos del programa: captura,
 bandas, paquete serie, calibración, velocidades de caída, botones, picos,
 notas, visualizador y detección de golpes.
 
-Los nombres de los dispositivos de audio y PUERTO_SERIE dependen de cada
-computadora: cada uno los ajusta en la suya.
+Los nombres de los dispositivos de audio dependen de cada computadora:
+cada uno los ajusta en la suya. El Arduino se busca solo por su VID:PID;
+PUERTO_SERIE es el plan B.
 """
 
 # --- Captura de audio ---
@@ -24,8 +25,14 @@ BANDAS = [(40, 60), (60, 90), (90, 130), (130, 190),
     (1950, 2850), (2850, 4200), (4200, 6250), (6250, 9200), (9200, 13500), (13500, 20000)]
 
 # --- Puerto serie ---
-PUERTO_SERIE = "/dev/cu.usbmodem11301" # ajustar según el puerto al que esté conectado el Arduino
-VELOCIDAD_SERIE = 115200               # baudios; tiene que coincidir con Serial.begin() del Arduino
+VELOCIDAD_SERIE = 115200   # baudios; tiene que coincidir con Serial.begin() del Arduino
+INTERVALO_BUSQUEDA = 1.0   # segundos entre intentos de conectar el Arduino
+# El Arduino se busca por su VID:PID (el "documento" del chip USB), así se
+# lo encuentra en cualquier puerto. Uno original = 2341:0043.
+VID_ARDUINO = 0x2341
+PID_ARDUINO = 0x0043
+# Plan B: si no aparece ningún Uno por VID:PID, se prueba este puerto fijo.
+PUERTO_SERIE = "/dev/cu.usbmodem11301"
 
 # --- Paquete al Arduino (ver docs/protocolo_serie.md) ---
 BYTE_INICIO = 255               # marca el comienzo de cada paquete; ningún dato puede valer 255

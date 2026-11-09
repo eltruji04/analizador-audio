@@ -43,6 +43,7 @@ Cada cambio queda anotado con su origen (`compu`, `Arduino` o `Blynk`), se muest
 - **Hilo de audio** (callback de `sounddevice`): analiza cada bloque, publica los resultados en `estado.audio` y manda el paquete al Arduino.
 - **Hilo principal:** lee los botones del Arduino (~100 veces por segundo) y dibuja el visualizador (~30 cuadros por segundo). En macOS la ventana solo se puede manejar desde este hilo. También es el que cierra y vuelve a abrir la captura cuando cambia la fuente.
 - **Hilo de Blynk** ([`blynk_cliente.py`](../pc/blynk_cliente.py)): mantiene la conexión con la app, manda los cambios de la compu y aplica los que llegan de la app. Si se corta, reintenta cada 5 s.
+- **Hilo vigilante del Arduino** (`principal.vigilar_arduino`): mientras no hay Arduino, intenta conectarlo una vez por segundo. Va aparte porque abrir el puerto tarda 2 s (el Uno se reinicia) y eso congelaría la ventana o cortaría el audio.
 
 ### Entrada de audio
 
@@ -55,7 +56,7 @@ El programa arranca con la fuente de `FUENTE_AUDIO` en `configuracion.py` y se p
 
 Al cambiarla, el programa cierra la captura y abre el otro dispositivo (el audio se corta unos 0,15–0,2 s). Además descarta lo que quedaba de la fuente anterior (la ventana deslizante y el promedio de dB) y recalibra, porque el micrófono y la línea tienen niveles muy distintos. Si el dispositivo nuevo no está, vuelve a la fuente anterior.
 
-Si el Arduino no está conectado al iniciar, o se desconecta en el medio, el programa sigue funcionando sin enviar.
+Si el Arduino no está conectado al iniciar, o se desconecta en el medio, el programa sigue funcionando sin enviar y lo sigue buscando. Al enchufarlo, en cualquier puerto USB, se conecta solo unos 3 s después. Lo encuentra por el VID:PID del chip USB (`2341:0043` en el Uno original), que no cambia con el puerto; si no aparece ninguno así (por ejemplo, un clon con CH340), prueba el puerto fijo `PUERTO_SERIE`.
 
 ---
 

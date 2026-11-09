@@ -48,7 +48,7 @@ Explica cómo está organizado el código, qué hacen las funciones más importa
 | `golpe.py` | Detecta golpes del bombo |
 | `nota.py` | Estima la nota (pendiente) |
 | `estado.py` | Estado del sistema (modos) y últimos resultados del audio. Única forma de cambiar un modo |
-| `serie.py` | Arma el paquete para el Arduino y lee los botones |
+| `serie.py` | Busca el puerto del Arduino, arma el paquete y lee los botones |
 | `visualizador.py` | Ventana: eventos, teclas y orden de dibujo |
 | `dibujo.py` | Una función por zona de la ventana |
 | `colores.py` | Paleta de la interfaz y color de cada banda |
@@ -59,13 +59,14 @@ Explica cómo está organizado el código, qué hacen las funciones más importa
 
 ## Los dos hilos
 
-El programa corre en **dos hilos** al mismo tiempo, más uno aparte para Blynk:
+El programa corre en **dos hilos** al mismo tiempo, más dos aparte: el de Blynk y el que vigila el Arduino:
 
 | Hilo | Quién lo maneja | Qué hace | Frecuencia |
 |---|---|---|---|
 | **De audio** | `sounddevice` | Llama a `principal.al_recibir_bloque` con cada bloque: análisis, golpe, nota y envío al Arduino | ~47 veces/s (un bloque cada ~21 ms) |
 | **Principal** | `captura.capturar_continuo` | Llama a `principal.en_cada_vuelta`: lee los botones y dibuja la ventana. Si cambió `estado.fuente`, cierra la captura y la vuelve a abrir con el otro dispositivo | ~100 vueltas/s; dibuja ~30 cuadros/s |
 | **De Blynk** | `blynk_cliente.bucle` | Manda a la app los cambios que quedaron en la cola y aplica los que llegan de la app; si se corta, reconecta | Escucha a Blynk hasta 50 ms por vuelta |
+| **Vigilante del Arduino** | `principal.vigilar_arduino` | Mientras `conexion` es `None`, busca el puerto y lo abre. Va en un hilo propio porque `conectar()` espera 2 s | Un intento cada `INTERVALO_BUSQUEDA` (1 s) |
 
 **Por qué dos hilos:** el audio no puede esperar. Si el análisis se hiciera en el mismo bucle que la ventana, un cuadro lento haría perder audio. Y al revés, en macOS la ventana **solo** se puede manejar desde el hilo principal, así que no puede ir en el callback.
 
@@ -75,6 +76,7 @@ El programa corre en **dos hilos** al mismo tiempo, más uno aparte para Blynk:
 - El hilo principal lee `datos = estado.audio` **una sola vez** por cuadro.
 - Como el reemplazo es de un solo paso, la ventana nunca ve la mitad de un bloque y la mitad del siguiente.
 - La captura solo se cierra y se abre desde el hilo principal. `principal.elegir_dispositivo` reinicia la memoria, el promedio y la calibración justo antes de abrir la nueva, cuando la anterior ya está cerrada: así el callback no los está usando.
+- `conexion` la publica el vigilante **recién después** de los 2 s de `conectar()`, en un solo paso. Así los otros hilos nunca le escriben a un Uno que todavía está arrancando: ven `None` o una conexión lista.
 - Los modos (`estado.pausa`, `estado.forma`…) los cambia el hilo principal (o el de Blynk) y los lee el de audio. Por eso `al_recibir_bloque` lee `estado.pausa` **una sola vez** en una variable local: así el `if` y el paquete usan el mismo valor aunque el botón lo cambie en el medio.
 
 ---
@@ -125,10 +127,12 @@ Todo lo que tiene que durar de un bloque al siguiente (`memoria`, `piso`, `techo
 | `al_recibir_bloque(bloque, cantidad_muestras, tiempo, aviso)` | El callback de audio. Hace todo el recorrido de arriba para un bloque |
 | `nombre_dispositivo(fuente)` | Devuelve `DISPOSITIVO_MICROFONO` o `DISPOSITIVO_SISTEMA` según la fuente; otra fuente da `ValueError` |
 | `elegir_dispositivo(fuente)` | La llama `capturar_continuo` antes de abrir cada captura (al empezar y en cada cambio de fuente) y devuelve el número del dispositivo. En un cambio pone la memoria en ceros, `db_suave = None` y pide recalibrar. Si el dispositivo nuevo no está, vuelve `estado.fuente` a la anterior; al empezar no hay anterior y da `ValueError` |
-| `enviar_paquete(paquete)` | Guarda el paquete para el espejo de la OLED y, si hay Arduino, lo manda. Si falla, sigue sin Arduino |
+| `vigilar_arduino()` | Corre en su propio hilo todo el programa. Mientras no hay Arduino, cada `INTERVALO_BUSQUEDA` busca el puerto con `serie.buscar_puerto()` y lo abre. Al conectar pone `pausa_enviada = False` y recién después publica `conexion` |
+| `perder_arduino()` | La llaman `enviar_paquete` y `atender_botones` cuando falla el puerto: pone `conexion = None`, `estado.arduino_conectado = False` y cierra el puerto viejo |
+| `enviar_paquete(paquete)` | Guarda el paquete para el espejo de la OLED y, si hay Arduino, lo manda. Si falla, llama a `perder_arduino()` |
 | `en_cada_vuelta()` | La llama el hilo principal: atiende los botones y, cada `INTERVALO_DIBUJO`, dibuja un cuadro. Devuelve `False` si se cerró la ventana |
 | `atender_botones()` | Lee un código de botón (si llegó) y lo aplica con `estado.aplicar_accion(codigo, "Arduino")` |
-| Bloque `__main__` | Conecta el Arduino (o sigue sin él), inicia Blynk, abre la ventana y arranca la captura con `elegir_dispositivo`. El `finally` cierra todo y muestra los paquetes por segundo |
+| Bloque `__main__` | Arranca el hilo `vigilar_arduino`, inicia Blynk, abre la ventana y arranca la captura con `elegir_dispositivo`. El `finally` cierra todo y muestra los paquetes por segundo |
 
 **Lógica de `al_recibir_bloque`, en pseudocódigo:**
 
@@ -164,7 +168,9 @@ si pasó INTERVALO_ENVIO:
 
 **Cuidado:** `golpe.detectar()` va **antes** del `and` (`golpe.detectar(...) and estado.golpe`). Así se llama en todos los bloques y el detector sigue viendo el audio aunque el efecto esté apagado; si fuera al revés, al prender el efecto compararía contra un bloque viejo.
 
-**Desconexión del Arduino:** cualquier `OSError` al escribir o leer el puerto pone `conexion = None` y `estado.arduino_conectado = False`. Desde ahí el programa sigue igual, pero sin enviar. Los paquetes se siguen armando para el espejo de la OLED.
+**Desconexión y reconexión del Arduino:** cualquier `OSError` al escribir o leer el puerto llama a `perder_arduino()`, que pone `conexion = None` y `estado.arduino_conectado = False`. Desde ahí el programa sigue igual, pero sin enviar (los paquetes se siguen armando para el espejo de la OLED), y `vigilar_arduino` lo vuelve a buscar. Al enchufarlo, en el mismo puerto USB o en otro, se conecta solo unos 3 s después: hasta 1 s hasta el próximo intento y 2 s de espera de `conectar()`. Lo mismo pasa si el programa arranca sin Arduino.
+
+**Cuidado:** al abrir el puerto, el Uno se reinicia y se olvida de la pausa. Por eso `vigilar_arduino` pone `pausa_enviada = False` antes de publicar la conexión: así, si estaba en pausa, el primer paquete vuelve a ser el de pausa y la OLED queda congelada en vez de en cero.
 
 ### captura.py
 
@@ -257,6 +263,7 @@ Guarda dos cosas:
 
 | Función | Qué hace |
 |---|---|
+| `buscar_puerto()` | Recorre `list_ports.comports()` y devuelve el `device` del primero cuyo VID:PID sea `VID_ARDUINO`:`PID_ARDUINO`. Si no hay ninguno, devuelve `PUERTO_SERIE` como plan B |
 | `conectar(puerto)` | Abre el puerto y espera 2 s, porque el Uno se reinicia al abrirlo. Si no está, da `SerialException` |
 | `armar_paquete(alturas, modo, nota, pausa, pico, forma_oled)` | Arma los 22 bytes. Las alturas se convierten a entero y se limitan a 0–32 (son mediciones); el resto, si está fuera de rango, da `ValueError` (es un error del programa). Así ningún dato puede valer 255 |
 | `enviar(conexion, paquete)` | `conexion.write(paquete)` |
@@ -328,6 +335,7 @@ Como el 255 reinicia la cuenta, si se pierde un byte el Arduino se vuelve a sinc
 | Ventana deslizante de 4096 muestras sobre bloques de 1024 | Con 1024 la FFT separa cada 47 Hz y las bandas graves quedan vacías; con 4096 baja a 11,7 Hz, y como se analiza en cada bloque se sigue actualizando cada 21 ms |
 | La compu es la única dueña del estado | Si el Arduino o Blynk cambiaran modos por su cuenta, habría dos versiones del estado que se desincronizan |
 | Los botones mandan "qué se apretó", no el valor nuevo | El Arduino no necesita saber el estado; la compu decide |
+| El Arduino se busca por VID:PID y no por nombre de puerto | El nombre (`/dev/cu.usbmodem…`) cambia según el USB donde se enchufa; el VID:PID es del chip y no cambia |
 | El paquete se arma aunque no haya Arduino | El espejo de la OLED funciona igual y sirve para probar sin hardware |
 | El 255 solo puede ser el inicio | El Arduino lo usa para encontrar el comienzo y resincronizarse |
 | La detección de golpe usa dB sin promediar | El promedio achata el bombo (~6 dB) |

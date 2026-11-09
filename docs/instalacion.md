@@ -128,6 +128,7 @@ python -m serial.tools.list_ports    # lista los puertos serie
 - Con el Arduino conectado, debería aparecer un puerto nuevo. Nombres probables:
   - macOS: `/dev/cu.usbmodem…` (Uno original) o `/dev/cu.usbserial…` (clon con chip CH340).
   - Linux: `/dev/ttyACM0` (Uno original) o `/dev/ttyUSB0` (clon).
+- Con `python -m serial.tools.list_ports -v` se ve además el `VID:PID` de cada puerto. El Uno original aparece como `2341:0043`: así lo encuentra el programa en cualquier puerto USB.
 
 **Importante:** los números de los dispositivos de audio cambian cuando se conecta o desconecta algo. Por eso el programa los busca por su nombre, nunca por su número.
 
@@ -141,7 +142,7 @@ Todos los parámetros están en [`pc/configuracion.py`](../pc/configuracion.py).
 
 | Parámetro | Para qué |
 |---|---|
-| `PUERTO_SERIE` | Puerto del Arduino. Cambia según la computadora y el puerto USB: verlo con `python -m serial.tools.list_ports`. |
+| `PUERTO_SERIE` | Plan B para encontrar el Arduino. El programa lo busca solo por `VID_ARDUINO`/`PID_ARDUINO`, en cualquier puerto USB; este puerto fijo solo se usa si no aparece ninguno con ese VID:PID (por ejemplo, un clon con CH340). Verlo con `python -m serial.tools.list_ports`. |
 | `FUENTE_AUDIO` | Fuente con la que arranca: `MODO_LINE` (audio del sistema) o `MODO_MIC` (micrófono). Después se cambia con la tecla `I` o el panel. |
 | `DISPOSITIVO_SISTEMA`, `DISPOSITIVO_MICROFONO` | Parte del nombre de los dispositivos de audio (se buscan por nombre, no por número). Son los dos entre los que se alterna al cambiar la fuente. |
 
@@ -151,6 +152,8 @@ Para ajustar el comportamiento:
 |---|---|
 | `BANDAS` | Límites en Hz de las 16 bandas. |
 | `INTERVALO_ENVIO` | Tiempo mínimo entre paquetes al Arduino (1/30 s). |
+| `VID_ARDUINO`, `PID_ARDUINO` | VID:PID del chip USB del Arduino (`2341:0043` = Uno original). Con eso se lo busca en cualquier puerto. |
+| `INTERVALO_BUSQUEDA` | Cada cuántos segundos se intenta conectar el Arduino mientras no está (1 s). |
 | `VELOCIDADES_CAIDA`, `VELOCIDAD_INICIAL` | Píxeles por bloque que bajan las barras en cada velocidad (lenta, normal, rápida) y con cuál arranca. |
 | `CAIDA_PICO` | Qué tan rápido baja la marca de pico. |
 | `PROMEDIO_DB` | Cuánto se promedia el nivel de cada banda entre bloques (0 = sin promedio). |

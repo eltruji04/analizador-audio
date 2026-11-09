@@ -128,13 +128,13 @@ La fuente de audio con la que arranca (micrófono o sistema) se elige con `FUENT
 - [x] Firmware: leer el byte 21 del paquete y dibujar las barras desde el centro
 - [x] El programa sigue funcionando sin Arduino o si se desconecta, y lo reconecta solo en cualquier puerto USB
 - [x] Conexión con Blynk: controles sincronizados con la app y reconexión automática (`pc/blynk_cliente.py`)
+- [x] Estimación de la nota y afinador (`pc/nota.py`): YIN para afinar; raíz del acorde con plantillas para el color por nota
+- [x] Probar la detección de golpe con música real
 
 **Por hacer**
 
-- [ ] Estimación de la nota y afinador (`pc/nota.py`)
 - [ ] Tablero de registro de uso en Blynk, y la fuente de audio como control de la app
 - [ ] Firmware: LEDs indicadores de la fuente de audio (micrófono / sistema)
-- [ ] Probar la detección de golpe con música real
 - [ ] Probar la instalación en Linux
 - [ ] Armar la caja de control
 - [ ] Medir el retardo entre el sonido y la pantalla
@@ -150,7 +150,7 @@ analizador-audio/
 │   ├── captura.py              # Captura de audio con sounddevice; reabre al cambiar la fuente
 │   ├── bandas.py               # FFT por bandas, calibración, suavizado y picos
 │   ├── golpe.py                # Detección de golpes del bombo
-│   ├── nota.py                 # Estimación de la nota (pendiente)
+│   ├── nota.py                 # Nota del acorde y afinador
 │   ├── serie.py                # Paquete al Arduino y lectura de botones
 │   ├── blynk_cliente.py        # Conexión con Blynk (hilo propio)
 │   ├── visualizador.py         # Ventana: eventos, teclas y bucle de dibujo

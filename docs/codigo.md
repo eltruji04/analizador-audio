@@ -85,9 +85,9 @@ El programa corre en **dos hilos** al mismo tiempo, más dos aparte: el de Blynk
 
 ```
 sounddevice ──► bloque (1024 muestras, estéreo)
-                  │ a_mono
-                  ▼
-                memoria (últimas 4096 muestras)
+                  │ a_mono                     │ (izquierdo − derecho) / 2
+                  ▼                            ▼
+                memoria (últimas 4096)     memoria_lados (últimas 4096)
                   │ calcular_bandas  (Hann + FFT + suma por banda)
                   ▼
                 energías ──► dB ──┬──────────────► golpe.detectar ──► destello
@@ -102,7 +102,8 @@ sounddevice ──► bloque (1024 muestras, estéreo)
                                   ▼
                                mostradas, picos
                                   │
-            nota.estimar(memoria) │
+     nota.estimar(memoria,        │
+                  memoria_lados)  │
                   ▼               ▼
             estado.publicar_audio ──► visualizador (hilo principal)
                                   │
@@ -120,7 +121,7 @@ sounddevice ──► bloque (1024 muestras, estéreo)
 
 ### principal.py
 
-Todo lo que tiene que durar de un bloque al siguiente (`memoria`, `piso`, `techo`, `db_suave`, `mostradas`, `destello`, `picos`, `conexion`, `fuente_abierta`…) se crea **una sola vez** a nivel de módulo, fuera de las funciones. Las funciones lo modifican "por dentro" (con `[:]` o `global`).
+Todo lo que tiene que durar de un bloque al siguiente (`memoria`, `memoria_lados`, `piso`, `techo`, `db_suave`, `mostradas`, `destello`, `picos`, `conexion`, `fuente_abierta`…) se crea **una sola vez** a nivel de módulo, fuera de las funciones. Las funciones lo modifican "por dentro" (con `[:]` o `global`).
 
 | Función | Qué hace |
 |---|---|
@@ -236,9 +237,16 @@ si algún grave subió > 6 dB y está cerca de su techo → golpe
 
 | Función | Qué hace |
 |---|---|
-| `estimar(muestras, fs)` | Tiene que devolver `(nota, frecuencia, cents)`. **Hoy siempre devuelve `(SIN_NOTA, None, None)`** |
+| `estimar(muestras, fs, afinador, lados=None)` | La llama `principal` en cada bloque. Devuelve `(nota, frecuencia, cents)`: nota 0–11 o `SIN_NOTA`; frecuencia y cents solo con el afinador (si no, `None`). Aplica la puerta de volumen y elige el método según `afinador` |
+| `detectar_frecuencia(muestras, fs)` | Método YIN: devuelve `(frecuencia, claridad)`, o `(None, claridad)` si la onda no se repite con claridad o está fuera de `NOTA_FRECUENCIA_MINIMA`–`_MAXIMA`. La usa el afinador |
+| `a_nota(frecuencia)` | Hz → `(nota 0–11, cents de −50 a +50)`, con `LA_REFERENCIA` = 440 Hz |
+| `croma(muestras)` | Energía (potencia) del espectro entre `CROMA_FRECUENCIA_MINIMA` y `_MAXIMA`, sumada en las 12 notas |
+| `perfil_armonicos(nota)` | Croma que deja una nota con sus 6 primeros armónicos; con esto se arman las 24 `plantillas` al importar |
+| `puntajes_raiz(croma)` | Parecido (0–1) de la croma con un acorde de cada raíz (el mejor entre mayor y menor) |
 
-Todo el resto ya está conectado: la nota va en el byte 18, el visualizador dibuja la tarjeta de nota, el color por nota y el afinador. Para implementarla alcanza con completar esta función.
+Lo que dura entre bloques vive en variables del módulo que cambia `estimar()` con `global`: `croma_suave`, `nota_actual`, `bloques_plana`, `candidata`, `bloques_candidata` y `frecuencia_suave`. En silencio se reinician todas. Las constantes están en la sección `# --- Notas ---` de `configuracion.py`; cada una dice cómo se midió.
+
+Las pruebas (`python pc/nota.py`) generan tonos, acordes de guitarra, ruido y voz sintéticos, y comprueban cada función y el modo nota en vivo (bloque a bloque).
 
 ### estado.py
 

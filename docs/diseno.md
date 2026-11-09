@@ -112,7 +112,7 @@ La computadora le avisa al Arduino la forma en el byte 21 del paquete: solo dist
 |---|---|
 | Fijo | Uno de los 5 colores de `COLORES_FIJOS` (celeste, verde, naranja, rosa, violeta), elegido en el panel del visualizador |
 | Arcoíris | Un tono distinto por banda, de rojo (graves) a violeta (agudos) |
-| Por nota ("modo armónico") | Todas las barras toman el color de la nota predominante (12 tonos repartidos en el círculo de colores); sin nota, el color fijo. Necesita `nota.py`, que **todavía no está implementado**. |
+| Por nota ("modo armónico") | Todas las barras toman el color de la raíz del acorde que suena (12 tonos repartidos en el círculo de colores); sin nota, el color fijo. Con el afinador activo, el color de la nota que se está afinando. |
 
 El color solo existe en la computadora: la OLED es monocromática. En espectrograma el color representa la intensidad.
 
@@ -121,7 +121,7 @@ El color solo existe en la computadora: la OLED es monocromática. En espectrogr
 - **Velocidad de caída:** cuántos píxeles por bloque bajan las barras (lenta, normal o rápida). Siempre suben enseguida.
 - **Marca de pico:** queda marcado el punto más alto que alcanzó cada barra y baja despacio. En "desde el centro" se marcan dos líneas, arriba y abajo.
 - **Golpe:** detecta la pegada del bombo en las bandas graves (40–90 Hz) y en cada golpe llena las barras 1, 2, 15 y 16, que después bajan con la misma caída. En la computadora el relleno se ve transparente detrás de la barra real y se encienden dos tiras a los costados; a la OLED se le manda la mayor de las dos alturas.
-- **Afinador** (solo en la computadora): la tarjeta de nota muestra la octava, la frecuencia y el desvío en cents (verde dentro de ±5 cents). Depende de `nota.py`.
+- **Afinador** (solo en la computadora): la tarjeta de nota muestra la octava, la frecuencia y el desvío en cents (verde dentro de ±5 cents). Mientras está activo, la nota (la de la OLED y la del color) es la que se está afinando, no la raíz del acorde.
 - **Pausa:** deja de mandarle paquetes al Arduino; la computadora sigue analizando y dibujando.
 
 ---
@@ -172,7 +172,7 @@ Como las reglas de cada modo quedan escritas dos veces (C++ en el Arduino y Pyth
 
 Cada vez que llega un bloque de audio (1024 muestras a 48 kHz, unos 21 ms), `principal.al_recibir_bloque`:
 
-1. **Pasa a mono** promediando los canales (BlackHole es estéreo).
+1. **Pasa a mono** promediando los canales (BlackHole es estéreo). Aparte guarda los **lados** del estéreo, (izquierdo − derecho) / 2, para la nota.
 2. **Ventana deslizante:** agrega el bloque a una memoria con las últimas 4096 muestras (unos 85 ms). Con solo 1024 muestras, la FFT separa frecuencias cada 47 Hz y las bandas graves quedarían vacías; con 4096 la separación baja a 11,7 Hz y se sigue actualizando con cada bloque.
 3. **FFT por bandas:** aplica una ventana de Hann, calcula el espectro y suma la energía de las 16 bandas, entre 40 Hz y 20 kHz, repartidas en escala logarítmica.
 4. **Decibeles:** pasa cada energía a dB (el silencio da −120 dB).
@@ -182,7 +182,10 @@ Cada vez que llega un bloque de audio (1024 muestras a 48 kHz, unos 21 ms), `pri
 8. **Alturas:** convierte los dB en una altura entre 0 (en el piso) y 32 (en el techo).
 9. **Suavizado y picos:** las barras suben enseguida y bajan según la velocidad de caída elegida; la marca de pico baja más despacio (`CAIDA_PICO`).
 10. **Golpe:** [`golpe.py`](../pc/golpe.py) mira los dB **sin promediar** (el promedio achata el bombo) de las bandas 1 y 2. Hay golpe si alguna sube más de 6 dB respecto del bloque anterior y queda a menos de 15 dB de su techo, con una espera de 0,15 s entre golpes. Con el efecto activo, llena las `BARRAS_GOLPE`.
-11. **Nota:** [`nota.py`](../pc/nota.py) estima la nota, su frecuencia y el desvío en cents. **Todavía no está implementado**: siempre devuelve "sin nota". Pendiente: con 11,7 Hz por valor del espectro no alcanza la precisión para el afinador en los graves; hace falta interpolar el pico o una ventana más larga.
+11. **Nota:** [`nota.py`](../pc/nota.py) da la nota (byte 18), y con el afinador también su frecuencia y el desvío en cents. Debajo de −60 dB no hay nota. Hay dos formas según el afinador:
+    - **Afinador activo:** busca el período de la onda con el método YIN (autocorrelación), así no se confunde de octava aunque la fundamental sea débil. Si la onda no se repite con claridad (ruido, varias notas) no hay nota. La frecuencia se promedia entre bloques para que la aguja no tiemble, salvo que salte más de medio semitono (nota nueva).
+    - **Afinador apagado (modo nota):** YIN no sirve con música, porque suenan varias notas a la vez. Se suma la energía del espectro entre 130 y 2000 Hz en las 12 notas (croma), se promedia entre bloques y se compara con 24 plantillas de acordes (mayores y menores, con los armónicos de sus notas). La nota es la **raíz** del acorde que mejor coincide: la nota más fuerte suele ser la quinta (G en un C). Para que no parpadee, la nota se mantiene hasta ~1 s si no se destaca ningún acorde, y una raíz nueva tiene que ganar con margen durante `CROMA_BLOQUES_CAMBIO` bloques seguidos. Si la música tiene estéreo de verdad (lados a menos de 20 dB de la mezcla), usa los lados en lugar de la mezcla: la voz, que casi siempre va al centro, se cancela y quedan las guitarras.
+    - **Límites:** con armonías ambiguas (por ejemplo, Clair de lune) cambia más seguido; con el micrófono no hay estéreo, así que una voz encima de la guitarra sigue moviendo la nota; un acorde menor se muestra con su raíz (Am → A).
 12. **Publicación:** deja las alturas, el destello, los picos y la nota en `estado.audio` para el visualizador.
 13. **Envío:** como mucho una vez cada `INTERVALO_ENVIO` (1/30 s) arma el paquete, lo guarda para el espejo de la OLED y, si hay Arduino, se lo manda. En pausa manda un último paquete y después nada.
 

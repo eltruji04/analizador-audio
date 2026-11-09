@@ -74,8 +74,6 @@ destello = numpy.zeros(configuracion.CANTIDAD_BARRAS)
 picos = numpy.zeros(configuracion.CANTIDAD_BARRAS)
 # Momento (time.monotonic()) del último golpe con el efecto activo. None = ninguno.
 momento_golpe = None
-# Cantidad de bloques procesados (para imprimir solo uno de cada 5).
-contador = 0
 
 # --- Envío al Arduino ---
 # Momento del último paquete enviado (time.monotonic(), en segundos).
@@ -112,7 +110,7 @@ def al_recibir_bloque(bloque, cantidad_muestras, tiempo, aviso):
 
     Corre en un hilo aparte (el de sounddevice), no en el bucle principal.
     """
-    global contador, ultimo_envio, pausa_enviada, db_suave, momento_golpe
+    global ultimo_envio, pausa_enviada, db_suave, momento_golpe
 
     # `aviso` está vacío si no hubo problemas; si se perdió audio, lo muestra.
     if aviso:
@@ -203,10 +201,6 @@ def al_recibir_bloque(bloque, cantidad_muestras, tiempo, aviso):
             pausa_enviada = pausa == 1
         # Si no: en pausa y el Arduino ya fue avisado, no se envía nada.
 
-    # Muestra las alturas en la consola uno de cada 5 bloques.
-    contador += 1
-    if contador % 5 == 0:
-        print(f"Alturas: {mostradas.round().astype(int)}")
 
 def nombre_dispositivo(fuente):
     """Nombre del dispositivo de configuracion.py que corresponde a la fuente."""

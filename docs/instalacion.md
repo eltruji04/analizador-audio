@@ -163,6 +163,8 @@ Para ajustar el comportamiento:
 | `BANDAS_DETECCION_GOLPE`, `GOLPE_SUBIDA_DB`, `GOLPE_DISTANCIA_TECHO_DB`, `GOLPE_ESPERA` | Detección de golpe (explicados en `golpe.py`). |
 | `BARRAS_GOLPE` | Barras que se llenan con cada golpe (1, 2, 15 y 16). |
 | `COLORES_FIJOS` | Muestras del modo de color fijo. |
+| `PASOS_ONDA`, `OPACIDAD_RELLENO_ARRIBA`, `OPACIDAD_RELLENO_ABAJO`, `ANCHO_BRILLO_ONDA`, `OPACIDAD_BRILLO_ONDA` | Aspecto de la forma onda: qué tan suave es la curva, el degradado del relleno y el brillo detrás de la línea. |
+| `ANCHO_TIRA_GOLPE` | Ancho en píxeles de las tiras de golpe a los costados del espectro. |
 
 ### Firmware del Arduino
 

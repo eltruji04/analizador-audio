@@ -103,7 +103,7 @@ La **forma** y el **color** se eligen por separado y se combinan libremente.
 |---|---|---|
 | Barras | Cada barra sube y baja según el volumen de su banda | Igual |
 | Desde el centro | La barra crece desde el centro hacia arriba y hacia abajo | Igual |
-| Onda | Una curva suave que pasa por los topes de las bandas, con relleno suave abajo y el color pasando de una banda a la otra. El golpe solo enciende las tiras de los costados | Barras |
+| Onda | Una curva suave que pasa por los topes de las bandas, con un brillo detrás, un relleno que se desvanece de la curva al piso y el color pasando de una banda a la otra. El golpe solo enciende las tiras de los costados | Barras |
 | Espectrograma | Historial de los últimos ~3 s: tiempo en horizontal (lo más nuevo a la derecha), bandas en vertical (agudos arriba) e intensidad como color. Sin marca de pico ni modo de color | Barras |
 
 La computadora le avisa al Arduino la forma en el byte 21 del paquete: solo distingue barras desde el piso y desde el centro ([protocolo_serie.md](protocolo_serie.md#forma-en-la-oled-byte-21)).

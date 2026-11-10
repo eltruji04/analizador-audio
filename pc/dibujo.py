@@ -82,11 +82,14 @@ def texto(superficie, contenido, fuente, color, posicion, ancla="topleft", suave
     return rect
 
 
-def capa(ancho, alto):
-    """Superficie transparente de ese tamaño, vacía, para dibujar con opacidad."""
-    clave = (ancho, alto)
+def capa(ancho, alto, nombre=""):
+    """
+    Superficie transparente de ese tamaño, vacía, para dibujar con opacidad.
+    Con `nombre` distinto se obtienen dos capas del mismo tamaño a la vez.
+    """
+    clave = (ancho, alto, nombre)
     if clave not in _capas:
-        _capas[clave] = pygame.Surface(clave, pygame.SRCALPHA)
+        _capas[clave] = pygame.Surface((ancho, alto), pygame.SRCALPHA)
     _capas[clave].fill((0, 0, 0, 0))
     return _capas[clave]
 
@@ -279,39 +282,76 @@ def suavizar(alturas, pasos):
     return curva
 
 
+def color_en(posicion, colores_bandas):
+    """Color de la onda en una posición (en bandas, 0.0 … 15.0), mezclando las dos vecinas."""
+    i = min(int(posicion), len(colores_bandas) - 2)
+    return colores.mezclar(colores_bandas[i], colores_bandas[i + 1], posicion - i)
+
+
+def degradar_relleno(relleno, puntos):
+    """
+    Cambia la transparencia del relleno de la onda: en cada columna va de
+    OPACIDAD_RELLENO_ARRIBA justo debajo de la curva a
+    OPACIDAD_RELLENO_ABAJO en el piso. Lo que está por encima de la curva
+    sigue transparente.
+    """
+    ancho, alto = relleno.get_size()
+    xs, ys = zip(*puntos)
+    # Altura de la curva en cada columna de píxeles, y la fila de cada píxel.
+    techo = numpy.interp(numpy.arange(ancho), xs, ys)[:, None]
+    filas = numpy.arange(alto)[None, :]
+    # 0 en la curva, 1 en el piso (el máximo evita dividir por 0 con la curva en el piso).
+    bajada = numpy.clip((filas - techo) / numpy.maximum(alto - techo, 1), 0, 1)
+    arriba = configuracion.OPACIDAD_RELLENO_ARRIBA
+    abajo = configuracion.OPACIDAD_RELLENO_ABAJO
+    opacidad = arriba + (abajo - arriba) * bajada
+    # pixels_alpha bloquea la superficie mientras exista: se suelta con del.
+    alfa = pygame.surfarray.pixels_alpha(relleno)
+    alfa[:] = (alfa * opacidad).astype(numpy.uint8)
+    del alfa
+
+
 def onda(superficie, area, datos, colores_bandas):
     """
     Forma "onda": una curva suave que pasa por los topes de las bandas, con
-    relleno transparente abajo. El color va pasando de una banda a la
-    siguiente. El golpe no se dibuja sobre la curva: solo se ven las
-    tiras de los costados.
+    un brillo detrás y un relleno abajo que se desvanece de la curva al
+    piso. El color va pasando de una banda a la siguiente. El golpe no se
+    dibuja sobre la curva: solo se ven las tiras de los costados.
     """
     cantidad = configuracion.CANTIDAD_BARRAS
     ancho = area.w / cantidad
-    transparente = capa(area.w, area.h)
 
     curva = suavizar(datos["alturas"], configuracion.PASOS_ONDA)
     puntos = [((posicion + 0.5) * ancho, area.h - a_pixeles(altura, area)) for posicion, altura in curva]
+    colores_curva = [color_en(posicion, colores_bandas) for posicion, _ in curva]
 
-    def color_en(posicion):
-        """Color de la curva en una posición (en bandas), mezclando las dos vecinas."""
-        i = min(int(posicion), cantidad - 2)
-        return colores.mezclar(colores_bandas[i], colores_bandas[i + 1], posicion - i)
-
-    # Relleno: un trapecio fino entre cada par de puntos de la curva.
+    # Relleno: un trapecio fino entre cada par de puntos, opaco del todo;
+    # después se le aplica el degradado a la transparencia.
+    relleno = capa(area.w, area.h)
     for j in range(len(puntos) - 1):
         (x1, y1), (x2, y2) = puntos[j], puntos[j + 1]
-        color = color_en((curva[j][0] + curva[j + 1][0]) / 2)
-        pygame.draw.polygon(transparente, (*color, 50), [(x1, y1), (x2, y2), (x2, area.h), (x1, area.h)])
-    superficie.blit(transparente, area.topleft)
+        color = colores.mezclar(colores_curva[j], colores_curva[j + 1], 0.5)
+        pygame.draw.polygon(relleno, color, [(x1, y1), (x2, y2), (x2, area.h), (x1, area.h)])
+    degradar_relleno(relleno, puntos)
+    superficie.blit(relleno, area.topleft)
+
+    # Brillo: la misma curva, más gruesa y transparente, detrás de la línea.
+    # Va en otra capa para no pisar la transparencia del relleno.
+    brillo = capa(area.w, area.h, "brillo")
+    alfa_brillo = int(255 * configuracion.OPACIDAD_BRILLO_ONDA)
+    radio_brillo = configuracion.ANCHO_BRILLO_ONDA / 2
+    for j in range(len(puntos) - 1):
+        color = (*colores_curva[j], alfa_brillo)
+        pygame.draw.line(brillo, color, puntos[j], puntos[j + 1], configuracion.ANCHO_BRILLO_ONDA)
+        pygame.draw.circle(brillo, color, puntos[j], radio_brillo)
+    superficie.blit(brillo, area.topleft)
 
     # Línea: un tramo corto por par de puntos y un círculo en cada unión
     # para que las líneas de 3 px no queden con muescas.
     en_ventana = [(x + area.x, y + area.y) for x, y in puntos]
     for j in range(len(en_ventana) - 1):
-        color = color_en(curva[j][0])
-        pygame.draw.line(superficie, color, en_ventana[j], en_ventana[j + 1], 3)
-        pygame.draw.circle(superficie, color, en_ventana[j], 1.5)
+        pygame.draw.line(superficie, colores_curva[j], en_ventana[j], en_ventana[j + 1], 3)
+        pygame.draw.circle(superficie, colores_curva[j], en_ventana[j], 1.5)
 
     if estado.pico:
         for i in range(configuracion.CANTIDAD_BARRAS):
@@ -350,8 +390,9 @@ def espectrograma(superficie, area, historial):
 def tiras_golpe(superficie, area, momento_golpe, ahora):
     """
     Tiras a los costados del espectro que se encienden con cada golpe y se
-    apagan en DURACION_DESTELLO_GOLPE. (Decisión abierta: pueden sobrar,
-    porque el golpe ya se ve en las bandas 1, 2, 15 y 16.)
+    apagan en DURACION_DESTELLO_GOLPE. En la forma onda son lo único que
+    muestra el golpe. Cada tira queda centrada en el margen entre el borde
+    de la tarjeta y el área de dibujo.
     """
     intensidad = 0
     if momento_golpe is not None:
@@ -359,8 +400,9 @@ def tiras_golpe(superficie, area, momento_golpe, ahora):
         if 0 <= transcurrido < configuracion.DURACION_DESTELLO_GOLPE:
             intensidad = 1 - transcurrido / configuracion.DURACION_DESTELLO_GOLPE
     color = colores.mezclar(colores.BORDE, colores.ACTIVO, intensidad)
-    for x in (ESPECTRO.x + 14, ESPECTRO.right - 20):
-        pygame.draw.rect(superficie, color, (x, area.y, 6, area.h), border_radius=3)
+    w = configuracion.ANCHO_TIRA_GOLPE
+    for centro in ((ESPECTRO.x + area.x) / 2, (area.right + ESPECTRO.right) / 2):
+        pygame.draw.rect(superficie, color, (round(centro - w / 2), area.y, w, area.h), border_radius=w // 2)
 
 
 # --- Espejo de la OLED ------------------------------------------------------

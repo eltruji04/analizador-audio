@@ -127,6 +127,11 @@ COLORES_FIJOS = [("celeste", (92, 200, 255)), ("verde", (63, 185, 80)),
 LARGO_HISTORIAL = 64          # cuadros que guarda el espectrograma
 DURACION_HISTORIAL = 3.0      # segundos que abarcan esos 64 cuadros
 PASOS_ONDA = 12               # puntos de la curva entre dos bandas en la forma "onda"
+OPACIDAD_RELLENO_ARRIBA = 0.45  # relleno de la onda justo debajo de la curva
+OPACIDAD_RELLENO_ABAJO = 0.03   # relleno de la onda en el piso
+ANCHO_BRILLO_ONDA = 11        # píxeles del brillo detrás de la curva (la línea mide 3)
+OPACIDAD_BRILLO_ONDA = 0.22   # opacidad de ese brillo
+ANCHO_TIRA_GOLPE = 10         # píxeles de las tiras de golpe a los costados (antes 6)
 OPACIDAD_GOLPE = 0.35         # opacidad del relleno de golpe sobre las barras
 DURACION_DESTELLO_GOLPE = 0.25  # segundos que se ven encendidas las tiras laterales de golpe
 

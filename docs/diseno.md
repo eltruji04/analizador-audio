@@ -101,8 +101,8 @@ La **forma** y el **color** se eligen por separado y se combinan libremente.
 
 | Forma | En la computadora | En la OLED |
 |---|---|---|
-| Barras | Cada barra sube y baja según el volumen de su banda | Igual |
-| Desde el centro | La barra crece desde el centro hacia arriba y hacia abajo | Igual |
+| Barras | Cada barra sube y baja según el volumen de su banda. En la compu se aclara hacia el tope, tiene un halo suave y un reflejo debajo del piso | Igual |
+| Desde el centro | La barra crece desde el centro hacia arriba y hacia abajo. En la compu se aclara hacia las puntas y tiene un halo suave | Igual |
 | Onda | Una curva suave que pasa por los topes de las bandas, con un brillo detrás, un relleno que se desvanece de la curva al piso y el color pasando de una banda a la otra. El peak es una curva fina con la misma forma, que nunca baja de la onda. El golpe solo enciende las tiras de los costados | Barras |
 | Espectrograma | Historial de los últimos ~3 s: tiempo en horizontal (lo más nuevo a la derecha), bandas en vertical (agudos arriba, con su frecuencia a la izquierda) e intensidad como color. Sin marca de pico ni modo de color | Barras |
 
@@ -122,7 +122,7 @@ El color solo existe en la computadora: la OLED es monocromática. En espectrogr
 
 - **Velocidad de caída:** cuántos píxeles por bloque bajan las barras (lenta, normal o rápida). Siempre suben enseguida.
 - **Marca de pico:** queda marcado el punto más alto que alcanzó cada barra y baja despacio. En "desde el centro" se marcan dos líneas, arriba y abajo.
-- **Golpe:** detecta la pegada del bombo en las bandas graves (40–90 Hz) y en cada golpe llena las barras 1, 2, 15 y 16, que después bajan con la misma caída. En la computadora el relleno se ve transparente detrás de la barra real y se encienden dos tiras a los costados (en la forma onda solo las tiras); a la OLED se le manda la mayor de las dos alturas.
+- **Golpe:** detecta la pegada del bombo en las bandas graves (40–90 Hz) y en cada golpe llena las barras 1, 2, 15 y 16, que después bajan con la misma caída. En la computadora el relleno se ve transparente detrás de la barra real y se encienden dos tiras a los costados (en la forma onda solo las tiras), y el fondo del espectro se aclara un poco (pulso); a la OLED se le manda la mayor de las dos alturas.
 - **Afinador** (solo en la computadora): la tarjeta de nota muestra la octava, la frecuencia y el desvío en cents (verde dentro de ±5 cents). Mientras está activo, la nota (la de la OLED y la del color) es la que se está afinando, no la raíz del acorde.
 - **Pausa:** deja de mandarle paquetes al Arduino; la computadora sigue analizando y dibujando.
 
@@ -158,13 +158,20 @@ Es parte del producto, no solo una herramienta de prueba. Es una ventana de **12
 | Zona | Contenido |
 |---|---|
 | Encabezado | Título, rango de frecuencias, último cambio con su origen, conexión con el Arduino y Blynk, y fuente activa |
-| Espectro | Las 16 bandas en la forma y el color elegidos, con altura continua (no en escalones), etiquetas de frecuencia y tiras de golpe a los costados |
+| Espectro | Las 16 bandas en la forma y el color elegidos, con altura continua (no en escalones), etiquetas de frecuencia, tiras de golpe a los costados y, junto al título, un medidor del nivel general |
 | Espejo de la OLED | Réplica de lo que muestra la OLED, dibujada a partir del **mismo paquete** que se manda al Arduino, con sus bytes debajo. Funciona aunque no haya Arduino |
 | Nota / afinador | La nota grande con la tira de 12 notas o, con el afinador activo, el afinador |
 | Panel de control | Fuente (`MIC` \| `LINE`), velocidad de caída, pausa, pico, golpe, afinador, forma, color, muestras de color fijo y atajos de teclado |
 | Pie | Cuadros por segundo reales |
 
 Con la tecla `Z` la ventana pasa a **pantalla completa** y muestra solo el espectro, en grande (para proyectarlo). La ventana se abre con `pygame.SCALED`, así el dibujo sigue siendo de 1280×840 y pygame lo escala al monitor. Sin panel no hay botones, pero las teclas siguen andando; `Z` o `Esc` vuelven a la ventana normal.
+
+Detalles de terminación:
+
+- **Medidor de nivel:** el volumen total del bloque en dBFS (`bandas.nivel_db`), **sin la calibración automática**, así se ve si la música está fuerte o baja aunque las barras siempre se vean llenas. Va de −60 a 0 dB: verde, amarillo desde −12 y rojo desde −3. Sube enseguida y baja 20 dB por segundo.
+- **Fundido:** al cambiar de forma, la imagen anterior se desvanece encima de la nueva en 0,3 s (sin el encabezado de la tarjeta).
+- **Pulso:** con cada golpe el fondo del espectro se aclara un poco y vuelve en el mismo tiempo que las tiras.
+- **Botones:** con el mouse encima se aclaran, y al activarse pasan de un aspecto al otro en 0,15 s. Las muestras de color fijo crecen un poco y el aro de la elegida aparece animado.
 
 Los clics y las teclas cambian el estado con `estado.cambiar(..., "compu")`, la misma función que usan los botones y Blynk. Las teclas están en el [README](../README.md#uso).
 

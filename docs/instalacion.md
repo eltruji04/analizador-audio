@@ -167,6 +167,11 @@ Para ajustar el comportamiento:
 | `ANCHO_TIRA_GOLPE` | Ancho en píxeles de las tiras de golpe a los costados del espectro. |
 | `SEPARACION_PICO_ONDA`, `OPACIDAD_PICO_ONDA` | Curva de peak de la forma onda: cuántos píxeles queda por encima del pico y qué tan visible es. |
 | `TRANSICION_COLOR` | Segundos que tarda el color de las bandas en pasar al nuevo al cambiar la nota o el modo de color. |
+| `BRILLO_BASE_BARRA`, `ANCHO_BRILLO_BARRA`, `OPACIDAD_BRILLO_BARRA` | Aspecto de las barras: qué tan oscura es la base y el halo alrededor. |
+| `ALTO_REFLEJO`, `OPACIDAD_REFLEJO` | Reflejo debajo de las barras y la onda (alto como parte del espectro y opacidad). |
+| `OPACIDAD_PULSO_GOLPE` | Cuánto se aclara el fondo del espectro con cada golpe (0 lo apaga). |
+| `DURACION_FUNDIDO_FORMA`, `DURACION_BOTON` | Segundos del fundido al cambiar de forma y de la animación de los botones. |
+| `NIVEL_MINIMO_DB`, `NIVEL_AMARILLO_DB`, `NIVEL_ROJO_DB`, `NIVEL_CAIDA_DB` | Medidor de nivel: rango, zonas de color y qué tan rápido baja. |
 
 ### Firmware del Arduino
 

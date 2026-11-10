@@ -196,6 +196,7 @@ Toda la matemática del análisis. Las funciones que actualizan arreglos los mod
 | `a_alturas(db, piso, techo)` | `(db − piso) / (techo − piso) · 32`, limitado a 0–32 |
 | `suavizar(mostradas, alturas, caida)` | `mostradas = máx(alturas, mostradas − caida)`: sube enseguida, baja como mucho `caida` por bloque |
 | `actualizar_picos(picos, mostradas)` | `picos = máx(mostradas, picos − CAIDA_PICO)` |
+| `nivel_db(muestras)` | Nivel del bloque en dBFS (valor eficaz, sin calibración): 0 = ±1 todo el tiempo, −6 = mitad de amplitud, silencio = −240. Lo usa el medidor de nivel |
 
 **Calibración automática (`actualizar_niveles`)**, por banda:
 
@@ -253,7 +254,7 @@ Las pruebas (`python pc/nota.py`) generan tonos, acordes de guitarra, ruido y vo
 Guarda dos cosas:
 
 1. **Estado del sistema:** `velocidad`, `pausa`, `pico`, `golpe`, `afinador`, `forma`, `color`, `color_fijo`, `fuente`, las conexiones y `ultimo_cambio`.
-2. **Últimos resultados:** `audio` (alturas, destello, picos, nota, frecuencia, cents, momento del golpe) y `ultimo_paquete` con sus `picos_enviados`.
+2. **Últimos resultados:** `audio` (alturas, destello, picos, nota, frecuencia, cents, momento del golpe y nivel en dBFS) y `ultimo_paquete` con sus `picos_enviados`.
 
 | Función | Qué hace |
 |---|---|
@@ -289,7 +290,7 @@ Guarda dos cosas:
 | `dibujar()` | Atiende los eventos, toma `estado.audio` una vez, agrega un cuadro al historial del espectrograma cada ~47 ms y llama a cada zona de `dibujo.py`. Al final, `pygame.display.flip()` |
 | `simular(...)` | Solo para `python pc/visualizador.py`: inventa barras, golpes y notas para probar la ventana sin audio |
 
-**`dibujo.py`** tiene una función por zona (`encabezado`, `espectro`, `espejo_oled`, `tarjeta_nota`, `panel`, `pie`) y una por forma (`barras`, `onda`, `espectrograma`). `onda` dibuja la curva que arma `suavizar(alturas, pasos)`: una interpolación cúbica monótona (Fritsch–Carlson) con `PASOS_ONDA` puntos entre cada par de bandas, que pasa por cada tope y nunca sale del rango de las dos bandas vecinas. El relleno se dibuja opaco y `degradar_relleno` le baja la transparencia columna por columna (de la curva al piso); el brillo va en otra capa (`capa(..., "brillo")`) para no pisar ese degradado. Con el peak activo, `pico_curva` dibuja otra curva con `suavizar` sobre los picos (con `aalines`, para que no se vea escalonada), sin bajar nunca de la onda. `espectro(..., zona)` recibe la tarjeta donde dibujar (la normal o la de pantalla completa) y pasa los colores por `acercar_colores`, que los lleva al color nuevo en `TRANSICION_COLOR` segundos con un acercamiento exponencial (igual con cualquier FPS). Solo dibujan: leen el estado y los datos que les pasan. Los botones del panel se anotan en `dibujo.botones` como `(rectángulo, función)` mientras se dibujan, y se borran al empezar cada cuadro.
+**`dibujo.py`** tiene una función por zona (`encabezado`, `espectro`, `espejo_oled`, `tarjeta_nota`, `panel`, `pie`) y una por forma (`barras`, `onda`, `espectrograma`). `onda` dibuja la curva que arma `suavizar(alturas, pasos)`: una interpolación cúbica monótona (Fritsch–Carlson) con `PASOS_ONDA` puntos entre cada par de bandas, que pasa por cada tope y nunca sale del rango de las dos bandas vecinas. El relleno se dibuja opaco y `degradar_relleno` le baja la transparencia columna por columna (de la curva al piso); el brillo va en otra capa (`capa(..., "brillo")`) para no pisar ese degradado. Con el peak activo, `pico_curva` dibuja otra curva con `suavizar` sobre los picos (con `aalines`, para que no se vea escalonada), sin bajar nunca de la onda. `barras` dibuja en tres capas (halo, destello y cuerpo) y `degradar_barras` oscurece cada barra hacia su base. Barras y onda dejan abajo `ALTO_REFLEJO` del área para `reflejo`, que copia la parte de abajo del dibujo dada vuelta y cada vez más transparente. `fundido` guarda una foto del espectro en cada cuadro y, si cambió la forma, la desvanece encima de la nueva. `medidor_nivel` dibuja el vúmetro junto al título, y `intensidad_golpe` (1 → 0) la usan las tiras y el pulso del fondo. En el panel, `animar(clave, objetivo)` lleva cada botón hacia su aspecto de mouse encima o activo. `espectro(..., zona)` recibe la tarjeta donde dibujar (la normal o la de pantalla completa) y pasa los colores por `acercar_colores`, que los lleva al color nuevo en `TRANSICION_COLOR` segundos con un acercamiento exponencial (igual con cualquier FPS). Solo dibujan: leen el estado y los datos que les pasan. Los botones del panel se anotan en `dibujo.botones` como `(rectángulo, función)` mientras se dibujan, y se borran al empezar cada cuadro.
 
 - `dibujar_oled(oled, paquete, picos)` reproduce la OLED **a partir del paquete**, no de los datos internos. Así lo que se ve en el espejo es exactamente lo que recibe el Arduino.
 - El destello de golpe se dibuja en una capa transparente detrás de la barra, para que se siga viendo el nivel real. En la forma onda no se dibuja: solo se encienden las tiras de los costados.

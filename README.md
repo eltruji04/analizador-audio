@@ -97,6 +97,7 @@ Se abre la ventana del visualizador y empieza el análisis. Si encuentra el Ardu
 | `A` | Afinador en la tarjeta de nota |
 | `R` | Recalibrar piso y techo desde lo que suena ahora |
 | `I` | Fuente de audio: micrófono (`MIC`) ↔ sistema (`LINE`) |
+| `Z` | Pantalla completa: solo el espectro, en grande (`Z` o `Esc` para salir) |
 
 El color fijo se elige con las muestras del panel, y la fuente también con sus botones `MIC` | `LINE`.
 

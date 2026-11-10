@@ -165,6 +165,8 @@ Para ajustar el comportamiento:
 | `COLORES_FIJOS` | Muestras del modo de color fijo. |
 | `PASOS_ONDA`, `OPACIDAD_RELLENO_ARRIBA`, `OPACIDAD_RELLENO_ABAJO`, `ANCHO_BRILLO_ONDA`, `OPACIDAD_BRILLO_ONDA` | Aspecto de la forma onda: qué tan suave es la curva, el degradado del relleno y el brillo detrás de la línea. |
 | `ANCHO_TIRA_GOLPE` | Ancho en píxeles de las tiras de golpe a los costados del espectro. |
+| `SEPARACION_PICO_ONDA`, `OPACIDAD_PICO_ONDA` | Curva de peak de la forma onda: cuántos píxeles queda por encima del pico y qué tan visible es. |
+| `TRANSICION_COLOR` | Segundos que tarda el color de las bandas en pasar al nuevo al cambiar la nota o el modo de color. |
 
 ### Firmware del Arduino
 

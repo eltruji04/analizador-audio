@@ -103,8 +103,8 @@ La **forma** y el **color** se eligen por separado y se combinan libremente.
 |---|---|---|
 | Barras | Cada barra sube y baja según el volumen de su banda | Igual |
 | Desde el centro | La barra crece desde el centro hacia arriba y hacia abajo | Igual |
-| Onda | Una curva suave que pasa por los topes de las bandas, con un brillo detrás, un relleno que se desvanece de la curva al piso y el color pasando de una banda a la otra. El golpe solo enciende las tiras de los costados | Barras |
-| Espectrograma | Historial de los últimos ~3 s: tiempo en horizontal (lo más nuevo a la derecha), bandas en vertical (agudos arriba) e intensidad como color. Sin marca de pico ni modo de color | Barras |
+| Onda | Una curva suave que pasa por los topes de las bandas, con un brillo detrás, un relleno que se desvanece de la curva al piso y el color pasando de una banda a la otra. El peak es una curva fina con la misma forma, que nunca baja de la onda. El golpe solo enciende las tiras de los costados | Barras |
+| Espectrograma | Historial de los últimos ~3 s: tiempo en horizontal (lo más nuevo a la derecha), bandas en vertical (agudos arriba, con su frecuencia a la izquierda) e intensidad como color. Sin marca de pico ni modo de color | Barras |
 
 La computadora le avisa al Arduino la forma en el byte 21 del paquete: solo distingue barras desde el piso y desde el centro ([protocolo_serie.md](protocolo_serie.md#forma-en-la-oled-byte-21)).
 
@@ -113,6 +113,8 @@ La computadora le avisa al Arduino la forma en el byte 21 del paquete: solo dist
 | Fijo | Uno de los 5 colores de `COLORES_FIJOS` (celeste, verde, naranja, rosa, violeta), elegido en el panel del visualizador |
 | Arcoíris | Un tono distinto por banda, de rojo (graves) a violeta (agudos) |
 | Por nota ("modo armónico") | Todas las barras toman el color de la raíz del acorde que suena (12 tonos repartidos en el círculo de colores); sin nota, el color fijo. Con el afinador activo, el color de la nota que se está afinando. |
+
+Al cambiar la nota o el modo de color, cada banda pasa del color viejo al nuevo en unos 0,2 s (`TRANSICION_COLOR`) en vez de saltar.
 
 El color solo existe en la computadora: la OLED es monocromática. En espectrograma el color representa la intensidad.
 
@@ -161,6 +163,8 @@ Es parte del producto, no solo una herramienta de prueba. Es una ventana de **12
 | Nota / afinador | La nota grande con la tira de 12 notas o, con el afinador activo, el afinador |
 | Panel de control | Fuente (`MIC` \| `LINE`), velocidad de caída, pausa, pico, golpe, afinador, forma, color, muestras de color fijo y atajos de teclado |
 | Pie | Cuadros por segundo reales |
+
+Con la tecla `Z` la ventana pasa a **pantalla completa** y muestra solo el espectro, en grande (para proyectarlo). La ventana se abre con `pygame.SCALED`, así el dibujo sigue siendo de 1280×840 y pygame lo escala al monitor. Sin panel no hay botones, pero las teclas siguen andando; `Z` o `Esc` vuelven a la ventana normal.
 
 Los clics y las teclas cambian el estado con `estado.cambiar(..., "compu")`, la misma función que usan los botones y Blynk. Las teclas están en el [README](../README.md#uso).
 

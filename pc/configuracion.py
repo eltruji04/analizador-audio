@@ -132,6 +132,9 @@ OPACIDAD_RELLENO_ABAJO = 0.03   # relleno de la onda en el piso
 ANCHO_BRILLO_ONDA = 11        # píxeles del brillo detrás de la curva (la línea mide 3)
 OPACIDAD_BRILLO_ONDA = 0.22   # opacidad de ese brillo
 ANCHO_TIRA_GOLPE = 10         # píxeles de las tiras de golpe a los costados (antes 6)
+SEPARACION_PICO_ONDA = 6      # píxeles entre la curva de peak y el pico real, en la forma onda
+OPACIDAD_PICO_ONDA = 0.7      # opacidad de esa curva
+TRANSICION_COLOR = 0.2        # segundos que tarda el color de las bandas en pasar al nuevo (nota o modo)
 OPACIDAD_GOLPE = 0.35         # opacidad del relleno de golpe sobre las barras
 DURACION_DESTELLO_GOLPE = 0.25  # segundos que se ven encendidas las tiras laterales de golpe
 

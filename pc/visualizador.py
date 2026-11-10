@@ -35,6 +35,8 @@ TECLAS = {
     pygame.K_r: lambda: estado.pedir_recalibracion("compu"),
     # Fuente: alterna entre MIC y LINE (MODO_MIC = 0, MODO_LINE = 1).
     pygame.K_i: lambda: estado.alternar("fuente", "compu"),
+    # Pantalla completa: no es estado del sistema, solo de esta ventana.
+    pygame.K_z: lambda: alternar_pantalla_completa(),
 }
 
 # Ventana. La crea iniciar(); empieza vacía.
@@ -51,6 +53,8 @@ inicio_cuadros = 0
 fps = 0
 # Texto extra del pie (por ejemplo "datos simulados").
 aviso_pie = ""
+# Con la tecla Z: solo el espectro, en grande y con la ventana a pantalla completa.
+pantalla_completa = False
 
 
 def iniciar():
@@ -59,9 +63,25 @@ def iniciar():
     # seguiría viendo pantalla en None.
     global pantalla
     pygame.init()
-    pantalla = pygame.display.set_mode((configuracion.ANCHO_VENTANA, configuracion.ALTO_VENTANA))
+    # SCALED: el dibujo sigue siendo de 1280×840 aunque la ventana pase a
+    # pantalla completa; pygame lo escala y ajusta las coordenadas del mouse.
+    pantalla = pygame.display.set_mode((configuracion.ANCHO_VENTANA, configuracion.ALTO_VENTANA), pygame.SCALED)
     pygame.display.set_caption("Analizador de audio")
     dibujo.cargar_fuentes()
+
+
+def alternar_pantalla_completa():
+    """
+    Entra o sale de la pantalla completa: la ventana ocupa todo el monitor
+    y se dibuja solo el espectro, en grande. Si el sistema no deja poner la
+    ventana a pantalla completa, igual cambia lo que se dibuja.
+    """
+    global pantalla_completa
+    pantalla_completa = not pantalla_completa
+    try:
+        pygame.display.toggle_fullscreen()
+    except pygame.error as error:
+        print(f"No se pudo cambiar a pantalla completa: {error}")
 
 
 def atender_eventos():
@@ -81,6 +101,9 @@ def atender_eventos():
                     break
         elif evento.type == pygame.KEYDOWN and evento.key in TECLAS:
             TECLAS[evento.key]()
+        elif evento.type == pygame.KEYDOWN and evento.key == pygame.K_ESCAPE and pantalla_completa:
+            # Escape también sale de la pantalla completa.
+            alternar_pantalla_completa()
     return True
 
 
@@ -105,6 +128,12 @@ def dibujar():
     pantalla.fill(colores.FONDO)
     # Se vuelven a anotar en cada cuadro, al dibujar el panel.
     dibujo.botones.clear()
+    if pantalla_completa:
+        # Solo el espectro: sin panel no hay botones, pero las teclas siguen andando.
+        dibujo.espectro(pantalla, datos, historial, ahora, dibujo.ESPECTRO_COMPLETO)
+        dibujo.aviso_pantalla_completa(pantalla)
+        pygame.display.flip()
+        return True
     dibujo.encabezado(pantalla)
     dibujo.espectro(pantalla, datos, historial, ahora)
     dibujo.espejo_oled(pantalla)

@@ -25,6 +25,11 @@ ESPEJO = pygame.Rect(24, 534, 572, 236)
 NOTA = pygame.Rect(616, 534, 300, 236)
 PANEL = pygame.Rect(936, 88, 320, 728)
 
+# Pantalla completa (tecla Z): el espectro ocupa casi toda la ventana.
+ESPECTRO_COMPLETO = pygame.Rect(16, 16, 1248, 796)
+# Columna a la izquierda del espectrograma para las frecuencias.
+ANCHO_FRECUENCIAS = 40
+
 ESCALA_OLED = 3
 ANCHO_OLED = 128
 ALTO_OLED = 32
@@ -162,28 +167,59 @@ def encabezado(superficie):
 
 # --- Espectro ------------------------------------------------------------------
 
-def espectro(superficie, datos, historial, ahora):
+# Color que se está mostrando en cada banda (con decimales, para que la
+# transición no se trabe al redondear) y momento del último cuadro.
+_colores_mostrados = None
+_momento_colores = None
+
+
+def acercar_colores(objetivos, ahora):
+    """
+    Acerca el color mostrado de cada banda a su color `objetivo`, para que
+    al cambiar la nota (o el modo de color) pase de uno a otro en unos
+    TRANSICION_COLOR segundos en vez de saltar. Es un acercamiento
+    exponencial: en cada cuadro recorre una parte de lo que falta, que
+    depende de cuánto duró el cuadro, así se ve igual con cualquier FPS.
+    Devuelve los colores como (R, G, B) enteros.
+    """
+    global _colores_mostrados, _momento_colores
+    if _colores_mostrados is None:
+        _colores_mostrados = [list(color) for color in objetivos]
+    else:
+        dt = max(0.0, ahora - _momento_colores)
+        # En TRANSICION_COLOR segundos recorre el 95 % (e^-3 ≈ 0,05).
+        parte = 1 - math.exp(-3 * dt / configuracion.TRANSICION_COLOR)
+        for mostrado, objetivo in zip(_colores_mostrados, objetivos):
+            for c in range(3):
+                mostrado[c] += (objetivo[c] - mostrado[c]) * parte
+    _momento_colores = ahora
+    return [tuple(round(c) for c in color) for color in _colores_mostrados]
+
+
+def espectro(superficie, datos, historial, ahora, zona=ESPECTRO):
     """
     Dibuja las 16 bandas en la forma elegida, las etiquetas de frecuencia
-    y las tiras laterales de golpe.
+    y las tiras laterales de golpe, dentro de `zona` (la tarjeta normal o,
+    en pantalla completa, casi toda la ventana).
     """
     if estado.forma == "espectrograma":
         detalle = "intensidad como color"
     else:
         detalle = f"{NOMBRES_FORMAS[estado.forma]} · color {NOMBRES_COLORES[estado.color].lower()}"
-    tarjeta(superficie, ESPECTRO, "Espectro", detalle)
+    tarjeta(superficie, zona, "Espectro", detalle)
 
     # Área de dibujo: deja lugar al título arriba, a las etiquetas abajo y
     # a las tiras de golpe a los costados.
-    area = pygame.Rect(ESPECTRO.x + 34, ESPECTRO.y + 44, ESPECTRO.w - 68, ESPECTRO.h - 44 - 34)
-    tiras_golpe(superficie, area, datos["momento_golpe"], ahora)
+    area = pygame.Rect(zona.x + 34, zona.y + 44, zona.w - 68, zona.h - 44 - 34)
+    tiras_golpe(superficie, zona, area, datos["momento_golpe"], ahora)
 
     if estado.forma == "espectrograma":
         espectrograma(superficie, area, historial)
         return
 
-    colores_bandas = [colores.color_banda(i, estado.color, estado.color_fijo, datos["nota"])
-                      for i in range(configuracion.CANTIDAD_BARRAS)]
+    objetivos = [colores.color_banda(i, estado.color, estado.color_fijo, datos["nota"])
+                 for i in range(configuracion.CANTIDAD_BARRAS)]
+    colores_bandas = acercar_colores(objetivos, ahora)
     if estado.forma == "onda":
         onda(superficie, area, datos, colores_bandas)
     else:
@@ -282,6 +318,20 @@ def suavizar(alturas, pasos):
     return curva
 
 
+def trazar(superficie, puntos, color, ancho):
+    """
+    Línea gruesa por una lista de puntos, con las uniones redondeadas (un
+    círculo en cada una) para que no queden muescas. `color` es un color
+    para toda la línea o una lista con uno por tramo; puede tener
+    transparencia si la superficie la tiene.
+    """
+    radio = ancho / 2
+    for j in range(len(puntos) - 1):
+        c = color[j] if isinstance(color, list) else color
+        pygame.draw.line(superficie, c, puntos[j], puntos[j + 1], ancho)
+        pygame.draw.circle(superficie, c, puntos[j], radio)
+
+
 def color_en(posicion, colores_bandas):
     """Color de la onda en una posición (en bandas, 0.0 … 15.0), mezclando las dos vecinas."""
     i = min(int(posicion), len(colores_bandas) - 2)
@@ -339,35 +389,49 @@ def onda(superficie, area, datos, colores_bandas):
     # Va en otra capa para no pisar la transparencia del relleno.
     brillo = capa(area.w, area.h, "brillo")
     alfa_brillo = int(255 * configuracion.OPACIDAD_BRILLO_ONDA)
-    radio_brillo = configuracion.ANCHO_BRILLO_ONDA / 2
-    for j in range(len(puntos) - 1):
-        color = (*colores_curva[j], alfa_brillo)
-        pygame.draw.line(brillo, color, puntos[j], puntos[j + 1], configuracion.ANCHO_BRILLO_ONDA)
-        pygame.draw.circle(brillo, color, puntos[j], radio_brillo)
+    trazar(brillo, puntos, [(*color, alfa_brillo) for color in colores_curva], configuracion.ANCHO_BRILLO_ONDA)
     superficie.blit(brillo, area.topleft)
 
-    # Línea: un tramo corto por par de puntos y un círculo en cada unión
-    # para que las líneas de 3 px no queden con muescas.
+    # Línea de 3 px encima del brillo.
     en_ventana = [(x + area.x, y + area.y) for x, y in puntos]
-    for j in range(len(en_ventana) - 1):
-        pygame.draw.line(superficie, colores_curva[j], en_ventana[j], en_ventana[j + 1], 3)
-        pygame.draw.circle(superficie, colores_curva[j], en_ventana[j], 1.5)
+    trazar(superficie, en_ventana, colores_curva, 3)
 
     if estado.pico:
-        for i in range(configuracion.CANTIDAD_BARRAS):
-            if datos["picos"][i] < 1:
-                continue
-            x = area.x + (i + 0.5) * ancho
-            y = area.bottom - a_pixeles(datos["picos"][i], area) - 8
-            pygame.draw.line(superficie, colores.BLANCO, (x - ancho * 0.25, y), (x + ancho * 0.25, y), 2)
+        pico_curva(superficie, area, datos["picos"], curva, ancho)
+
+
+def pico_curva(superficie, area, picos, curva_onda, ancho):
+    """
+    Peak de la forma onda: una curva fina y clara con la misma forma suave
+    que la onda, un poco por encima de los picos. Va con aalines (bordes
+    suavizados) dos veces, una un píxel más abajo, para que tenga 2 px sin
+    verse escalonada. Los tramos donde las dos bandas tienen pico menor a 1
+    no se dibujan (serían una línea pegada al piso). `curva_onda` es la
+    curva de la onda: entre dos bandas las dos curvas se interpolan por
+    separado y podrían cruzarse, así que el peak nunca baja de la onda.
+    """
+    pasos = configuracion.PASOS_ONDA
+    curva = suavizar(list(picos), pasos)
+    puntos = [(area.x + (posicion + 0.5) * ancho,
+               area.bottom - a_pixeles(max(altura, onda_altura), area) - configuracion.SEPARACION_PICO_ONDA)
+              for (posicion, altura), (_, onda_altura) in zip(curva, curva_onda)]
+    # aalines no usa transparencia: el blanco se mezcla con el fondo de la tarjeta.
+    color = colores.mezclar(colores.TARJETA, colores.BLANCO, configuracion.OPACIDAD_PICO_ONDA)
+    for i in range(len(picos) - 1):
+        if picos[i] < 1 and picos[i + 1] < 1:
+            continue
+        tramo = puntos[i * pasos:(i + 1) * pasos + 1]
+        pygame.draw.aalines(superficie, color, False, tramo)
+        pygame.draw.aalines(superficie, color, False, [(x, y + 1) for x, y in tramo])
 
 
 def espectrograma(superficie, area, historial):
     """
     Forma "espectrograma": tiempo en horizontal (lo más nuevo a la
     derecha), bandas en vertical (agudos arriba) e intensidad como color.
-    Se arma una imagen de LARGO_HISTORIAL × 16 píxeles y se estira al área.
-    Sin peak y sin modo de color.
+    Se arma una imagen de LARGO_HISTORIAL × 16 píxeles y se estira al área,
+    menos una columna a la izquierda para las frecuencias. Sin peak y sin
+    modo de color.
     """
     largo = configuracion.LARGO_HISTORIAL
     intensidades = numpy.zeros((largo, configuracion.CANTIDAD_BARRAS))
@@ -378,16 +442,26 @@ def espectrograma(superficie, area, historial):
     # Forma (ancho, alto, 3); [:, ::-1] da vuelta las bandas para que los agudos queden arriba.
     imagen = colores.MAPA_ESPECTROGRAMA[indices][:, ::-1]
     chica = pygame.surfarray.make_surface(imagen)
-    superficie.blit(pygame.transform.scale(chica, area.size), area.topleft)
+    zona_imagen = area.inflate(-ANCHO_FRECUENCIAS, 0).move(ANCHO_FRECUENCIAS / 2, 0)
+    superficie.blit(pygame.transform.scale(chica, zona_imagen.size), zona_imagen.topleft)
+
+    # Frecuencias a la izquierda: el límite inferior de una banda de cada
+    # dos, en el borde de abajo de su fila, y arriba el máximo de la última.
+    fila = zona_imagen.h / configuracion.CANTIDAD_BARRAS
+    x = zona_imagen.x - 6
+    for i in range(0, configuracion.CANTIDAD_BARRAS, 2):
+        minimo = configuracion.BANDAS[i][0]
+        texto(superficie, nombre_frecuencia(minimo), "mono_chica", colores.TEXTO_SECUNDARIO,
+              (x, zona_imagen.bottom - i * fila), "midright")
+    maximo = configuracion.BANDAS[-1][1]
+    texto(superficie, nombre_frecuencia(maximo), "mono_chica", colores.TEXTO_SECUNDARIO, (x, zona_imagen.y), "midright")
 
     segundos = configuracion.DURACION_HISTORIAL
-    texto(superficie, f"−{segundos:g} s", "mono_chica", colores.TEXTO_SECUNDARIO, (area.x, area.bottom + 10))
-    texto(superficie, "ahora", "mono_chica", colores.TEXTO_SECUNDARIO, (area.right, area.bottom + 10), "topright")
-    texto(superficie, "agudos", "mono_chica", colores.TEXTO_SECUNDARIO, (area.x + 6, area.y + 4))
-    texto(superficie, "graves", "mono_chica", colores.TEXTO_SECUNDARIO, (area.x + 6, area.bottom - 4), "bottomleft")
+    texto(superficie, f"−{segundos:g} s", "mono_chica", colores.TEXTO_SECUNDARIO, (zona_imagen.x, zona_imagen.bottom + 10))
+    texto(superficie, "ahora", "mono_chica", colores.TEXTO_SECUNDARIO, (zona_imagen.right, zona_imagen.bottom + 10), "topright")
 
 
-def tiras_golpe(superficie, area, momento_golpe, ahora):
+def tiras_golpe(superficie, zona, area, momento_golpe, ahora):
     """
     Tiras a los costados del espectro que se encienden con cada golpe y se
     apagan en DURACION_DESTELLO_GOLPE. En la forma onda son lo único que
@@ -401,7 +475,7 @@ def tiras_golpe(superficie, area, momento_golpe, ahora):
             intensidad = 1 - transcurrido / configuracion.DURACION_DESTELLO_GOLPE
     color = colores.mezclar(colores.BORDE, colores.ACTIVO, intensidad)
     w = configuracion.ANCHO_TIRA_GOLPE
-    for centro in ((ESPECTRO.x + area.x) / 2, (area.right + ESPECTRO.right) / 2):
+    for centro in ((zona.x + area.x) / 2, (area.right + zona.right) / 2):
         pygame.draw.rect(superficie, color, (round(centro - w / 2), area.y, w, area.h), border_radius=w // 2)
 
 
@@ -637,9 +711,16 @@ def panel(superficie):
         botones.append((rect, lambda i=i: estado.cambiar("color_fijo", i, "compu")))
 
     y = seccion(superficie, y + 54, "Atajos de teclado")
-    for linea in ["Espacio pausa · P peak · G golpe", "A afinador · F forma · C color", "V caída · R recalibrar · I fuente"]:
+    for linea in ["Espacio pausa · P peak · G golpe", "A afinador · F forma · C color", "V caída · R recalibrar · I fuente",
+                  "Z pantalla completa"]:
         texto(superficie, linea, "chica", colores.TEXTO_SECUNDARIO, (x, y))
         y += 20
+
+
+def aviso_pantalla_completa(superficie):
+    """En pantalla completa: recordatorio de cómo salir, abajo a la derecha."""
+    texto(superficie, "Z o Esc para salir", "mono_chica", colores.TEXTO_SECUNDARIO,
+          (ESPECTRO_COMPLETO.right - 4, ESPECTRO_COMPLETO.bottom + 7), "topright")
 
 
 def pie(superficie, contenido):
@@ -718,7 +799,48 @@ if __name__ == "__main__":
         curva = suavizar(ALTURAS, 1)
         revisar([a for _, a in curva] == ALTURAS, "pasos = 1 → los mismos puntos", len(curva), 16)
 
-    for nombre, prueba in [("cantidad de puntos", largo), ("pasa por las bandas", pasa_por_bandas),
+    def colores_primero():
+        # La primera vez no hay de dónde venir: devuelve el objetivo tal cual.
+        global _colores_mostrados
+        _colores_mostrados = None
+        obtenido = acercar_colores([(255, 0, 0)], 10.0)
+        revisar(obtenido == [(255, 0, 0)], "color: primer cuadro = objetivo", obtenido, [(255, 0, 0)])
+
+    def colores_transicion():
+        # De negro a blanco: a los TRANSICION_COLOR s tiene que ir por el 95 %.
+        global _colores_mostrados
+        _colores_mostrados = None
+        acercar_colores([(0, 0, 0)], 0.0)
+        t = 0.0
+        while t < configuracion.TRANSICION_COLOR - 1e-9:
+            t += 1 / 30
+            obtenido = acercar_colores([(255, 255, 255)], t)[0][0]
+        revisar(235 <= obtenido <= 250, f"color: a los {configuracion.TRANSICION_COLOR:g} s va por el 95 %",
+                obtenido, "≈ 242")
+
+    def colores_fps():
+        # Mismo tiempo con 30 o con 60 cuadros por segundo: casi el mismo color.
+        global _colores_mostrados
+        resultados = []
+        for fps in (30, 60):
+            _colores_mostrados = None
+            acercar_colores([(0, 0, 0)], 0.0)
+            for k in range(1, fps // 10 + 1):
+                valor = acercar_colores([(200, 200, 200)], k / fps)[0][0]
+            resultados.append(valor)
+        revisar(abs(resultados[0] - resultados[1]) <= 1, "color: igual con 30 y 60 FPS", resultados, "iguales")
+
+    def colores_llega():
+        global _colores_mostrados
+        _colores_mostrados = None
+        acercar_colores([(10, 20, 30)], 0.0)
+        for k in range(1, 61):
+            obtenido = acercar_colores([(200, 100, 50)], k / 30)
+        revisar(obtenido == [(200, 100, 50)], "color: a los 2 s llegó", obtenido, [(200, 100, 50)])
+
+    for nombre, prueba in [("color primer cuadro", colores_primero), ("color transición", colores_transicion),
+                           ("color con distintos FPS", colores_fps), ("color llega", colores_llega),
+                           ("cantidad de puntos", largo), ("pasa por las bandas", pasa_por_bandas),
                            ("no inventa picos", no_se_pasa), ("posiciones en orden", posiciones_crecen),
                            ("todo igual", plano), ("silencio", silencio), ("rampa", rampa),
                            ("pasos = 1", un_paso)]:

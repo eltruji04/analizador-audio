@@ -246,36 +246,72 @@ def barras(superficie, area, datos, colores_bandas, desde_centro):
         pygame.draw.line(superficie, colores.BORDE, (area.x, area.centery), (area.right, area.centery))
 
 
+def suavizar(alturas, pasos):
+    """
+    Curva suave que pasa por el tope de cada banda, con `pasos` puntos por
+    tramo (interpolación cúbica monótona de Fritsch–Carlson). Entre dos
+    bandas nunca sale del rango de esas dos: no inventa picos ni baja del
+    piso. Devuelve una lista de (posición, altura), con la posición medida
+    en bandas (0.0 … n−1).
+    """
+    n = len(alturas)
+    # Pendiente de cada tramo y pendiente de la curva en cada banda.
+    d = [alturas[i + 1] - alturas[i] for i in range(n - 1)]
+    m = [0.0] * n
+    m[0], m[-1] = d[0], d[-1]
+    for i in range(1, n - 1):
+        # Pico, valle o tramo plano: la curva se aplana ahí para no pasarse.
+        if d[i - 1] * d[i] <= 0:
+            m[i] = 0.0
+        else:
+            m[i] = 2 / (1 / d[i - 1] + 1 / d[i])   # media armónica
+
+    curva = []
+    for i in range(n - 1):
+        for k in range(pasos):
+            t = k / pasos
+            h00 = 2 * t ** 3 - 3 * t ** 2 + 1
+            h10 = t ** 3 - 2 * t ** 2 + t
+            h01 = -2 * t ** 3 + 3 * t ** 2
+            h11 = t ** 3 - t ** 2
+            curva.append((i + t, h00 * alturas[i] + h10 * m[i] + h01 * alturas[i + 1] + h11 * m[i + 1]))
+    curva.append((n - 1, alturas[-1]))
+    return curva
+
+
 def onda(superficie, area, datos, colores_bandas):
     """
-    Forma "onda": una línea que une los topes de las bandas, con relleno
-    suave abajo y un punto de color por banda. El golpe se ve como
-    columnas transparentes detrás de la línea.
+    Forma "onda": una curva suave que pasa por los topes de las bandas, con
+    relleno transparente abajo. El color va pasando de una banda a la
+    siguiente. El golpe no se dibuja sobre la curva: solo se ven las
+    tiras de los costados.
     """
-    ancho = area.w / configuracion.CANTIDAD_BARRAS
+    cantidad = configuracion.CANTIDAD_BARRAS
+    ancho = area.w / cantidad
     transparente = capa(area.w, area.h)
-    alfa = int(255 * configuracion.OPACIDAD_GOLPE)
-    puntos = []
-    for i in range(configuracion.CANTIDAD_BARRAS):
-        x = (i + 0.5) * ancho
-        puntos.append((x, area.h - a_pixeles(datos["alturas"][i], area)))
-        alto_destello = a_pixeles(datos["destello"][i], area)
-        if alto_destello > 0:
-            pygame.draw.rect(transparente, (*colores_bandas[i], alfa),
-                             (i * ancho + 3, area.h - alto_destello, ancho - 6, alto_destello), border_radius=3)
 
-    # Relleno: un trapecio entre cada par de puntos, con el color de los dos mezclado.
-    for i in range(len(puntos) - 1):
-        (x1, y1), (x2, y2) = puntos[i], puntos[i + 1]
-        color = colores.mezclar(colores_bandas[i], colores_bandas[i + 1], 0.5)
+    curva = suavizar(datos["alturas"], configuracion.PASOS_ONDA)
+    puntos = [((posicion + 0.5) * ancho, area.h - a_pixeles(altura, area)) for posicion, altura in curva]
+
+    def color_en(posicion):
+        """Color de la curva en una posición (en bandas), mezclando las dos vecinas."""
+        i = min(int(posicion), cantidad - 2)
+        return colores.mezclar(colores_bandas[i], colores_bandas[i + 1], posicion - i)
+
+    # Relleno: un trapecio fino entre cada par de puntos de la curva.
+    for j in range(len(puntos) - 1):
+        (x1, y1), (x2, y2) = puntos[j], puntos[j + 1]
+        color = color_en((curva[j][0] + curva[j + 1][0]) / 2)
         pygame.draw.polygon(transparente, (*color, 50), [(x1, y1), (x2, y2), (x2, area.h), (x1, area.h)])
     superficie.blit(transparente, area.topleft)
 
+    # Línea: un tramo corto por par de puntos y un círculo en cada unión
+    # para que las líneas de 3 px no queden con muescas.
     en_ventana = [(x + area.x, y + area.y) for x, y in puntos]
-    for i in range(len(en_ventana) - 1):
-        pygame.draw.line(superficie, colores_bandas[i], en_ventana[i], en_ventana[i + 1], 3)
-    for i, punto in enumerate(en_ventana):
-        pygame.draw.circle(superficie, colores_bandas[i], punto, 5)
+    for j in range(len(en_ventana) - 1):
+        color = color_en(curva[j][0])
+        pygame.draw.line(superficie, color, en_ventana[j], en_ventana[j + 1], 3)
+        pygame.draw.circle(superficie, color, en_ventana[j], 1.5)
 
     if estado.pico:
         for i in range(configuracion.CANTIDAD_BARRAS):
@@ -567,3 +603,83 @@ def panel(superficie):
 def pie(superficie, contenido):
     """Línea de estado abajo a la izquierda (FPS, datos simulados…)."""
     texto(superficie, contenido, "mono_chica", colores.TEXTO_SECUNDARIO, (24, 790))
+
+
+if __name__ == "__main__":
+    # Pruebas de suavizar(alturas, pasos): la curva de la forma "onda".
+    errores = 0
+
+    def revisar(bien, nombre, obtenido, esperado):
+        """Imprime una línea OK / ERROR y cuenta los errores."""
+        global errores
+        errores += 0 if bien else 1
+        print(f"{'OK   ' if bien else 'ERROR'} {nombre:<40} → {obtenido}   (esperado {esperado})")
+
+    def caso(nombre, prueba):
+        """Corre una prueba; si explota, cuenta como ERROR y sigue con las demás."""
+        global errores
+        try:
+            prueba()
+        except Exception as e:
+            errores += 1
+            print(f"ERROR {nombre:<40} → {type(e).__name__}: {e}")
+
+    ALTURAS = [20, 27, 14, 22, 9, 17, 6, 12, 15, 4, 10, 3, 8, 2, 5, 1]
+    PASOS = 12
+
+    def largo():
+        curva = suavizar(ALTURAS, PASOS)
+        esperado = (len(ALTURAS) - 1) * PASOS + 1
+        revisar(len(curva) == esperado, "cantidad de puntos", len(curva), esperado)
+
+    def pasa_por_bandas():
+        curva = suavizar(ALTURAS, PASOS)
+        malos = [i for i in range(len(ALTURAS))
+                 if abs(curva[i * PASOS][0] - i) > 1e-9 or abs(curva[i * PASOS][1] - ALTURAS[i]) > 1e-9]
+        revisar(not malos, "pasa por el tope de cada banda", f"bandas mal: {malos}", "ninguna")
+
+    def no_se_pasa():
+        # Entre dos bandas la curva no puede salir del rango de esas dos:
+        # nada por debajo del piso ni picos falsos más altos que la banda.
+        curva = suavizar(ALTURAS, PASOS)
+        fuera = []
+        for i in range(len(ALTURAS) - 1):
+            bajo, alto = sorted((ALTURAS[i], ALTURAS[i + 1]))
+            tramo = curva[i * PASOS:(i + 1) * PASOS + 1]
+            if any(a < bajo - 1e-9 or a > alto + 1e-9 for _, a in tramo):
+                fuera.append(i)
+        revisar(not fuera, "no inventa picos ni valles", f"tramos fuera: {fuera}", "ninguno")
+
+    def posiciones_crecen():
+        curva = suavizar(ALTURAS, PASOS)
+        bien = all(curva[j][0] < curva[j + 1][0] for j in range(len(curva) - 1))
+        revisar(bien, "posiciones en orden de 0 a 15", (curva[0][0], curva[-1][0]), (0, 15))
+
+    def plano():
+        curva = suavizar([10] * 16, PASOS)
+        bien = all(abs(a - 10) < 1e-9 for _, a in curva)
+        revisar(bien, "todo igual → línea recta", "recta" if bien else "se curva", "recta")
+
+    def silencio():
+        curva = suavizar([0] * 16, PASOS)
+        bien = all(abs(a) < 1e-9 for _, a in curva)
+        revisar(bien, "silencio → todo en el piso", "piso" if bien else "se despega", "piso")
+
+    def rampa():
+        # Subida pareja: la curva tiene que ser la misma recta, sin ondular.
+        alturas = list(range(16))
+        curva = suavizar(alturas, PASOS)
+        bien = all(abs(a - p) < 1e-9 for p, a in curva)
+        revisar(bien, "rampa pareja → recta", "recta" if bien else "ondula", "recta")
+
+    def un_paso():
+        curva = suavizar(ALTURAS, 1)
+        revisar([a for _, a in curva] == ALTURAS, "pasos = 1 → los mismos puntos", len(curva), 16)
+
+    for nombre, prueba in [("cantidad de puntos", largo), ("pasa por las bandas", pasa_por_bandas),
+                           ("no inventa picos", no_se_pasa), ("posiciones en orden", posiciones_crecen),
+                           ("todo igual", plano), ("silencio", silencio), ("rampa", rampa),
+                           ("pasos = 1", un_paso)]:
+        caso(nombre, prueba)
+
+    print("Todo bien" if errores == 0 else f"{errores} errores")

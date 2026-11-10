@@ -178,7 +178,9 @@ def al_recibir_bloque(bloque, cantidad_muestras, tiempo, aviso):
     # frecuencia y el desvío en cents.
     numero_nota, frecuencia, cents = nota.estimar(memoria, fs, estado.afinador, memoria_lados)
     # Todo lo que dibuja el visualizador, de una sola vez.
-    estado.publicar_audio(mostradas, destello, picos, numero_nota, frecuencia, cents, momento_golpe)
+    # Nivel general del bloque (sin calibración), para el medidor de la ventana.
+    nivel = bandas.nivel_db(mono)
+    estado.publicar_audio(mostradas, destello, picos, numero_nota, frecuencia, cents, momento_golpe, nivel)
 
     # Se lee una sola vez: el botón la cambia desde otro hilo, y así el
     # `if` y el paquete usan el mismo valor aunque cambie en el medio.

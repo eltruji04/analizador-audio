@@ -191,7 +191,9 @@ def simular(ahora, dt, mostradas, destello, picos, ultimo_golpe):
     cents = 20 * numpy.sin(t * 1.3)
     # Octava 3: midi de C3 = 48.
     frecuencia = 440 * 2 ** ((48 + nota - 69 + cents / 100) / 12)
-    estado.publicar_audio(mostradas, destello, picos, nota, frecuencia, cents, momento_golpe)
+    # Nivel general: entre −30 y −6 dB más o menos, que sube con cada golpe.
+    nivel = -18 + 8 * numpy.sin(t * 0.7) + (6 if ahora - ultimo_golpe < 0.1 else 0)
+    estado.publicar_audio(mostradas, destello, picos, nota, frecuencia, cents, momento_golpe, nivel)
     return ultimo_golpe
 
 

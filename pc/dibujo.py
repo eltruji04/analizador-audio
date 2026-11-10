@@ -14,6 +14,7 @@ y función a llamar) para que visualizador.py sepa qué se clicó.
 """
 
 import math
+import time
 import numpy
 import pygame
 import configuracion
@@ -29,6 +30,8 @@ PANEL = pygame.Rect(936, 88, 320, 728)
 ESPECTRO_COMPLETO = pygame.Rect(16, 16, 1248, 796)
 # Columna a la izquierda del espectrograma para las frecuencias.
 ANCHO_FRECUENCIAS = 40
+# Ancho del medidor de nivel, al lado del título del espectro.
+ANCHO_MEDIDOR = 160
 
 ESCALA_OLED = 3
 ANCHO_OLED = 128
@@ -99,9 +102,9 @@ def capa(ancho, alto, nombre=""):
     return _capas[clave]
 
 
-def tarjeta(superficie, rect, titulo=None, detalle=None):
+def tarjeta(superficie, rect, titulo=None, detalle=None, fondo=colores.TARJETA):
     """Fondo de una zona: rectángulo redondeado con borde y título opcional."""
-    pygame.draw.rect(superficie, colores.TARJETA, rect, border_radius=10)
+    pygame.draw.rect(superficie, fondo, rect, border_radius=10)
     pygame.draw.rect(superficie, colores.BORDE, rect, width=1, border_radius=10)
     if titulo:
         texto(superficie, titulo, "negrita", colores.TEXTO, (rect.x + 16, rect.y + 12))
@@ -198,38 +201,148 @@ def acercar_colores(objetivos, ahora):
 
 def espectro(superficie, datos, historial, ahora, zona=ESPECTRO):
     """
-    Dibuja las 16 bandas en la forma elegida, las etiquetas de frecuencia
-    y las tiras laterales de golpe, dentro de `zona` (la tarjeta normal o,
-    en pantalla completa, casi toda la ventana).
+    Dibuja las 16 bandas en la forma elegida, las etiquetas de frecuencia,
+    el medidor de nivel y las tiras laterales de golpe, dentro de `zona`
+    (la tarjeta normal o, en pantalla completa, casi toda la ventana).
+    Con cada golpe el fondo de la tarjeta se aclara un poco (pulso). Al
+    cambiar de forma, la imagen vieja se desvanece encima de la nueva.
     """
+    global _foto_fundido, _inicio_fundido, _forma_anterior, _foto_anterior
+    # Si cambió la forma, la foto del cuadro anterior es la que se desvanece.
+    if estado.forma != _forma_anterior and _foto_anterior is not None:
+        _foto_fundido = _foto_anterior
+        _inicio_fundido = ahora
+    _forma_anterior = estado.forma
+
     if estado.forma == "espectrograma":
         detalle = "intensidad como color"
     else:
         detalle = f"{NOMBRES_FORMAS[estado.forma]} · color {NOMBRES_COLORES[estado.color].lower()}"
-    tarjeta(superficie, zona, "Espectro", detalle)
+    golpe = intensidad_golpe(datos["momento_golpe"], ahora)
+    fondo = colores.mezclar(colores.TARJETA, colores.ACTIVO, configuracion.OPACIDAD_PULSO_GOLPE * golpe)
+    tarjeta(superficie, zona, "Espectro", detalle, fondo)
+    medidor_nivel(superficie, zona, datos["nivel"], ahora)
 
     # Área de dibujo: deja lugar al título arriba, a las etiquetas abajo y
     # a las tiras de golpe a los costados.
     area = pygame.Rect(zona.x + 34, zona.y + 44, zona.w - 68, zona.h - 44 - 34)
-    tiras_golpe(superficie, zona, area, datos["momento_golpe"], ahora)
+    tiras_golpe(superficie, zona, area, golpe)
 
     if estado.forma == "espectrograma":
         espectrograma(superficie, area, historial)
-        return
-
-    objetivos = [colores.color_banda(i, estado.color, estado.color_fijo, datos["nota"])
-                 for i in range(configuracion.CANTIDAD_BARRAS)]
-    colores_bandas = acercar_colores(objetivos, ahora)
-    if estado.forma == "onda":
-        onda(superficie, area, datos, colores_bandas)
     else:
-        barras(superficie, area, datos, colores_bandas, estado.forma == "centro")
+        objetivos = [colores.color_banda(i, estado.color, estado.color_fijo, datos["nota"])
+                     for i in range(configuracion.CANTIDAD_BARRAS)]
+        colores_bandas = acercar_colores(objetivos, ahora)
+        # Barras y onda dejan abajo un lugar para su reflejo.
+        con_reflejo = estado.forma in ("barras", "onda")
+        alto_reflejo = int(area.h * configuracion.ALTO_REFLEJO) if con_reflejo else 0
+        area_forma = pygame.Rect(area.x, area.y, area.w, area.h - alto_reflejo)
+        if estado.forma == "onda":
+            onda(superficie, area_forma, datos, colores_bandas)
+        else:
+            barras(superficie, area_forma, datos, colores_bandas, estado.forma == "centro")
+        if con_reflejo:
+            reflejo(superficie, area_forma, alto_reflejo)
 
-    # Etiquetas: el límite inferior de cada banda, debajo de su barra.
-    ancho = area.w / configuracion.CANTIDAD_BARRAS
-    for i, (minimo, _) in enumerate(configuracion.BANDAS):
-        centro = (area.x + (i + 0.5) * ancho, area.bottom + 10)
-        texto(superficie, nombre_frecuencia(minimo), "mono_chica", colores.TEXTO_SECUNDARIO, centro, "midtop")
+        # Etiquetas: el límite inferior de cada banda, debajo de su barra.
+        ancho = area.w / configuracion.CANTIDAD_BARRAS
+        for i, (minimo, _) in enumerate(configuracion.BANDAS):
+            centro = (area.x + (i + 0.5) * ancho, area.bottom + 10)
+            texto(superficie, nombre_frecuencia(minimo), "mono_chica", colores.TEXTO_SECUNDARIO, centro, "midtop")
+
+    fundido(superficie, zona, ahora)
+
+
+# Fundido al cambiar de forma: foto del último cuadro dibujado, forma de
+# ese cuadro y, durante el fundido, la foto que se desvanece y desde cuándo.
+_foto_anterior = None
+_forma_anterior = None
+_foto_fundido = None
+_inicio_fundido = 0
+
+
+def fundido(superficie, zona, ahora):
+    """
+    Dibuja encima la foto de la forma anterior, cada vez más transparente,
+    durante DURACION_FUNDIDO_FORMA segundos. Después guarda la foto de este
+    cuadro, por si en el próximo cambia la forma. Solo se funde lo que está
+    debajo del encabezado de la tarjeta. Si la zona cambió de tamaño
+    (pantalla completa), la foto vieja no sirve y se descarta.
+    """
+    global _foto_fundido, _foto_anterior
+    # Sin el encabezado de la tarjeta (título, medidor y detalle): esos
+    # cambian enseguida y superpuestos se leen mal.
+    debajo = pygame.Rect(zona.x + 1, zona.y + 40, zona.w - 2, zona.h - 41)
+    if _foto_fundido is not None:
+        transcurrido = ahora - _inicio_fundido
+        if _foto_fundido.get_size() != debajo.size or transcurrido >= configuracion.DURACION_FUNDIDO_FORMA:
+            _foto_fundido = None
+        else:
+            _foto_fundido.set_alpha(int(255 * (1 - transcurrido / configuracion.DURACION_FUNDIDO_FORMA)))
+            superficie.blit(_foto_fundido, debajo.topleft)
+    _foto_anterior = superficie.subsurface(debajo).copy()
+
+
+def reflejo(superficie, area, alto):
+    """
+    Debajo del piso de `area`, la parte de abajo del dibujo dada vuelta y
+    cada vez más transparente: de OPACIDAD_REFLEJO junto al piso a 0 a
+    `alto` píxeles.
+    """
+    if alto <= 0:
+        return
+    origen = superficie.subsurface(pygame.Rect(area.x, area.bottom - alto, area.w, alto))
+    imagen = pygame.Surface((area.w, alto), pygame.SRCALPHA)
+    imagen.blit(pygame.transform.flip(origen, False, True), (0, 0))
+    opacidad = configuracion.OPACIDAD_REFLEJO * (1 - numpy.arange(alto) / alto)
+    alfa = pygame.surfarray.pixels_alpha(imagen)
+    alfa[:] = (255 * opacidad[None, :]).astype(numpy.uint8)
+    del alfa
+    superficie.blit(imagen, (area.x, area.bottom))
+
+
+# Nivel mostrado en el medidor (dB) y momento del último cuadro: sube enseguida
+# y baja NIVEL_CAIDA_DB por segundo, como un vúmetro.
+_nivel_mostrado = None
+_momento_nivel = 0
+
+
+def medidor_nivel(superficie, zona, nivel, ahora):
+    """
+    Medidor del volumen total, sin calibración, al lado del título de la
+    tarjeta: de NIVEL_MINIMO_DB a 0 dBFS, verde, amarillo desde
+    NIVEL_AMARILLO_DB y rojo desde NIVEL_ROJO_DB. Las zonas se ven apagadas
+    y se encienden hasta el nivel actual.
+    """
+    global _nivel_mostrado, _momento_nivel
+    minimo = configuracion.NIVEL_MINIMO_DB
+    # float(): por si llega un tipo de numpy (pygame no acepta numpy.float32).
+    nivel = minimo if nivel is None else max(minimo, min(0.0, float(nivel)))
+    if _nivel_mostrado is None or nivel >= _nivel_mostrado:
+        _nivel_mostrado = nivel
+    else:
+        bajada = configuracion.NIVEL_CAIDA_DB * max(0.0, ahora - _momento_nivel)
+        _nivel_mostrado = max(nivel, _nivel_mostrado - bajada)
+    _momento_nivel = ahora
+
+    barra = pygame.Rect(zona.x + 110, zona.y + 19, ANCHO_MEDIDOR, 6)
+
+    def a_x(db):
+        return barra.x + (db - minimo) / -minimo * barra.w
+
+    zonas = [(minimo, configuracion.NIVEL_AMARILLO_DB, colores.CONECTADO),
+             (configuracion.NIVEL_AMARILLO_DB, configuracion.NIVEL_ROJO_DB, colores.PAUSA),
+             (configuracion.NIVEL_ROJO_DB, 0.0, colores.ROJO)]
+    for desde, hasta, color in zonas:
+        x1, x2 = a_x(desde), a_x(hasta)
+        pygame.draw.rect(superficie, colores.mezclar(colores.TARJETA, color, 0.22),
+                         (x1, barra.y, x2 - x1 - 2, barra.h), border_radius=2)
+        encendido = min(a_x(_nivel_mostrado), x2 - 2) - x1
+        if encendido > 0:
+            pygame.draw.rect(superficie, color, (x1, barra.y, encendido, barra.h), border_radius=2)
+    texto(superficie, f"{_nivel_mostrado:.0f} dB".replace("-", "−"), "mono_chica", colores.TEXTO_SECUNDARIO,
+          (barra.right + 8, barra.centery), "midleft")
 
 
 def a_pixeles(altura, area):
@@ -240,14 +353,22 @@ def a_pixeles(altura, area):
 def barras(superficie, area, datos, colores_bandas, desde_centro):
     """
     Forma "barras" (desde el piso) o "centro" (simétricas desde la línea
-    media). Detrás de cada barra, el destello de golpe con OPACIDAD_GOLPE;
-    encima, la marca de pico si está activa.
+    media). Cada barra se aclara hacia el tope (degradar_barras) y tiene un
+    brillo suave alrededor. Detrás, el destello de golpe con
+    OPACIDAD_GOLPE; encima, la marca de pico si está activa.
     """
     ancho = area.w / configuracion.CANTIDAD_BARRAS
     separacion = max(4, ancho * 0.18)
-    transparente = capa(area.w, area.h)
-    alfa = int(255 * configuracion.OPACIDAD_GOLPE)
     medio = area.h / 2
+    # Tres capas: brillo (abajo de todo), destello y el cuerpo de las barras.
+    brillo = capa(area.w, area.h, "brillo")
+    destellos = capa(area.w, area.h)
+    cuerpo = capa(area.w, area.h, "barras")
+    alfa_destello = int(255 * configuracion.OPACIDAD_GOLPE)
+    alfa_brillo = int(255 * configuracion.OPACIDAD_BRILLO_BARRA)
+    margen = configuracion.ANCHO_BRILLO_BARRA
+    # Alto de la barra que cae en cada columna de píxeles (0 en los huecos).
+    altos = numpy.zeros(area.w)
 
     for i in range(configuracion.CANTIDAD_BARRAS):
         x = i * ancho + separacion / 2
@@ -265,13 +386,31 @@ def barras(superficie, area, datos, colores_bandas, desde_centro):
         # El destello se dibuja aparte y transparente: completa lo que le
         # falta a la barra y el nivel real se sigue viendo abajo.
         if alto_destello > alto:
-            pygame.draw.rect(transparente, (*color, alfa), rect(alto_destello), border_radius=3)
-        r = rect(alto).move(area.x, area.y)
+            pygame.draw.rect(destellos, (*color, alfa_destello), rect(alto_destello), border_radius=3)
+        r = rect(alto)
         if r.h > 0:
-            pygame.draw.rect(superficie, color, r, border_radius=3)
+            pygame.draw.rect(cuerpo, color, r, border_radius=3)
+            # Halo en tres anillos, de afuera hacia adentro y cada uno más opaco
+            # (en una capa con transparencia, draw reemplaza los píxeles, no
+            # los suma): fuerte pegado a la barra y se desvanece hacia afuera.
+            for k in (3, 2, 1):
+                m = margen * k / 3
+                alfa = alfa_brillo * (4 - k) // 3
+                pygame.draw.rect(brillo, (*color, alfa), r.inflate(2 * m, 2 * m), border_radius=round(3 + m))
+            altos[r.x:r.right] = alto
 
-        # Un pico de menos de 1 no se marca: sería una raya suelta en el piso.
-        if estado.pico and datos["picos"][i] >= 1:
+    degradar_barras(cuerpo, altos, desde_centro)
+    superficie.blit(brillo, area.topleft)
+    superficie.blit(destellos, area.topleft)
+    superficie.blit(cuerpo, area.topleft)
+
+    # Un pico de menos de 1 no se marca: sería una raya suelta en el piso.
+    if estado.pico:
+        for i in range(configuracion.CANTIDAD_BARRAS):
+            if datos["picos"][i] < 1:
+                continue
+            x = i * ancho + separacion / 2
+            w = ancho - separacion
             pico = a_pixeles(datos["picos"][i], area)
             if desde_centro:
                 marcas = [area.y + medio - pico / 2 - 3, area.y + medio + pico / 2]
@@ -280,9 +419,32 @@ def barras(superficie, area, datos, colores_bandas, desde_centro):
             for y in marcas:
                 pygame.draw.rect(superficie, colores.BLANCO, (area.x + x, y, w, 3))
 
-    superficie.blit(transparente, area.topleft)
     if desde_centro:
         pygame.draw.line(superficie, colores.BORDE, (area.x, area.centery), (area.right, area.centery))
+
+
+def degradar_barras(cuerpo, altos, desde_centro):
+    """
+    Oscurece cada barra hacia su base: el tope queda con su color y la base
+    con BRILLO_BASE_BARRA de ese color. `altos` es el alto en píxeles de la
+    barra de cada columna. Desde el centro, la base es la línea media y se
+    aclara hacia las dos puntas.
+    """
+    ancho, alto = cuerpo.get_size()
+    filas = numpy.arange(alto)[None, :]
+    altos = numpy.maximum(altos, 1)[:, None]
+    if desde_centro:
+        # 0 en la línea media, 1 en las puntas.
+        subida = numpy.abs(filas - alto / 2) / (altos / 2)
+    else:
+        # 0 en el piso, 1 en el tope de la barra.
+        subida = (alto - filas) / altos
+    base = configuracion.BRILLO_BASE_BARRA
+    factor = base + (1 - base) * numpy.clip(subida, 0, 1)
+    # pixels3d bloquea la superficie mientras exista: se suelta con del.
+    rgb = pygame.surfarray.pixels3d(cuerpo)
+    rgb[:] = (rgb * factor[:, :, None]).astype(numpy.uint8)
+    del rgb
 
 
 def suavizar(alturas, pasos):
@@ -461,18 +623,24 @@ def espectrograma(superficie, area, historial):
     texto(superficie, "ahora", "mono_chica", colores.TEXTO_SECUNDARIO, (zona_imagen.right, zona_imagen.bottom + 10), "topright")
 
 
-def tiras_golpe(superficie, zona, area, momento_golpe, ahora):
+def intensidad_golpe(momento_golpe, ahora):
+    """1 justo en el golpe, baja hasta 0 en DURACION_DESTELLO_GOLPE; 0 sin golpe."""
+    if momento_golpe is None:
+        return 0.0
+    transcurrido = ahora - momento_golpe
+    if 0 <= transcurrido < configuracion.DURACION_DESTELLO_GOLPE:
+        return 1 - transcurrido / configuracion.DURACION_DESTELLO_GOLPE
+    return 0.0
+
+
+def tiras_golpe(superficie, zona, area, intensidad):
     """
     Tiras a los costados del espectro que se encienden con cada golpe y se
-    apagan en DURACION_DESTELLO_GOLPE. En la forma onda son lo único que
-    muestra el golpe. Cada tira queda centrada en el margen entre el borde
-    de la tarjeta y el área de dibujo.
+    apagan en DURACION_DESTELLO_GOLPE (`intensidad` va de 1 a 0). En la
+    forma onda son lo único que muestra el golpe, junto con el pulso del
+    fondo. Cada tira queda centrada en el margen entre el borde de la
+    tarjeta y el área de dibujo.
     """
-    intensidad = 0
-    if momento_golpe is not None:
-        transcurrido = ahora - momento_golpe
-        if 0 <= transcurrido < configuracion.DURACION_DESTELLO_GOLPE:
-            intensidad = 1 - transcurrido / configuracion.DURACION_DESTELLO_GOLPE
     color = colores.mezclar(colores.BORDE, colores.ACTIVO, intensidad)
     w = configuracion.ANCHO_TIRA_GOLPE
     for centro in ((zona.x + area.x) / 2, (area.right + zona.right) / 2):
@@ -612,25 +780,56 @@ def afinador(superficie, datos):
 
 # --- Panel de control ---------------------------------------------------------
 
+# Animaciones del panel: clave → [valor actual, momento de la última vez].
+_animaciones = {}
+
+
+def animar(clave, objetivo, duracion=None):
+    """
+    Valor entre 0 y 1 que se acerca a `objetivo` (0 o 1) en unos `duracion`
+    segundos (DURACION_BOTON si no se da), con el mismo acercamiento
+    exponencial que los colores. `clave` identifica qué se anima (un botón
+    y si es el mouse encima o el estar activo). La primera vez ya arranca
+    en el objetivo, así al abrir la ventana no se anima nada.
+    """
+    duracion = duracion or configuracion.DURACION_BOTON
+    ahora = time.monotonic()
+    if clave not in _animaciones:
+        _animaciones[clave] = [float(objetivo), ahora]
+    animacion = _animaciones[clave]
+    parte = 1 - math.exp(-3 * max(0.0, ahora - animacion[1]) / duracion)
+    animacion[0] += (objetivo - animacion[0]) * parte
+    animacion[1] = ahora
+    return animacion[0]
+
+
+def mezcla_texto(a, b, t):
+    """Como colores.mezclar, pero en 16 escalones: cada color de texto se arma una vez y queda en el cache."""
+    return colores.mezclar(a, b, round(t * 16) / 16)
+
+
 def boton(superficie, rect, etiqueta, activo, accion, atajo=None, detalle=None, color_activo=colores.ACTIVO):
     """
     Dibuja un botón y lo anota en `botones`. Activo: borde y fondo del
-    color `color_activo`. `atajo` es la tecla, en chiquito arriba a la derecha.
+    color `color_activo`. `atajo` es la tecla, en chiquito arriba a la
+    derecha. Con el mouse encima se aclara, y al activarse o desactivarse
+    pasa de un aspecto al otro en DURACION_BOTON segundos.
     """
-    sobre = rect.collidepoint(pygame.mouse.get_pos())
-    if activo:
-        fondo = colores.mezclar(colores.TARJETA, color_activo, 0.18)
-        borde = color_activo
-        color_texto = colores.TEXTO
-    else:
-        fondo = colores.FONDO
-        borde = colores.TEXTO_SECUNDARIO if sobre else colores.BORDE
-        color_texto = colores.TEXTO_SECUNDARIO
+    clave = (etiqueta, rect.x, rect.y)
+    sobre = animar((clave, "sobre"), 1 if rect.collidepoint(pygame.mouse.get_pos()) else 0)
+    prendido = animar((clave, "activo"), 1 if activo else 0)
+
+    fondo_activo = colores.mezclar(colores.TARJETA, color_activo, 0.18)
+    fondo = colores.mezclar(colores.FONDO, fondo_activo, prendido)
+    fondo = colores.mezclar(fondo, colores.BORDE, 0.5 * sobre)
+    borde = colores.mezclar(colores.BORDE, colores.TEXTO_SECUNDARIO, sobre)
+    borde = colores.mezclar(borde, color_activo, prendido)
+    color_texto = mezcla_texto(colores.TEXTO_SECUNDARIO, colores.TEXTO, max(prendido, 0.6 * sobre))
     pygame.draw.rect(superficie, fondo, rect, border_radius=8)
     pygame.draw.rect(superficie, borde, rect, width=1, border_radius=8)
     if detalle:
         texto(superficie, etiqueta, "negrita", color_texto, (rect.x + 12, rect.y + 9))
-        texto(superficie, detalle, "chica", color_activo if activo else colores.TEXTO_SECUNDARIO,
+        texto(superficie, detalle, "chica", mezcla_texto(colores.TEXTO_SECUNDARIO, color_activo, prendido),
               (rect.x + 12, rect.bottom - 9), "bottomleft")
     else:
         texto(superficie, etiqueta, "normal", color_texto, rect.center, "center")
@@ -705,9 +904,13 @@ def panel(superficie):
         centro = (x + paso * (i + 0.5), y + radio + 2)
         rect = pygame.Rect(0, 0, 2 * radio + 8, 2 * radio + 8)
         rect.center = centro
-        pygame.draw.circle(superficie, rgb, centro, radio)
-        if estado.color_fijo == i:
-            pygame.draw.circle(superficie, colores.TEXTO, centro, radio + 4, width=2)
+        # Con el mouse encima crece un poco; el aro de la elegida aparece y se va animado.
+        sobre = animar(("color_fijo", i, "sobre"), 1 if rect.collidepoint(pygame.mouse.get_pos()) else 0)
+        elegido = animar(("color_fijo", i, "activo"), 1 if estado.color_fijo == i else 0)
+        pygame.draw.circle(superficie, rgb, centro, radio + 2 * sobre)
+        if elegido > 0.05:
+            aro = colores.mezclar(colores.TARJETA, colores.TEXTO, elegido)
+            pygame.draw.circle(superficie, aro, centro, radio + 2 + 2 * elegido, width=2)
         botones.append((rect, lambda i=i: estado.cambiar("color_fijo", i, "compu")))
 
     y = seccion(superficie, y + 54, "Atajos de teclado")
@@ -838,7 +1041,50 @@ if __name__ == "__main__":
             obtenido = acercar_colores([(200, 100, 50)], k / 30)
         revisar(obtenido == [(200, 100, 50)], "color: a los 2 s llegó", obtenido, [(200, 100, 50)])
 
-    for nombre, prueba in [("color primer cuadro", colores_primero), ("color transición", colores_transicion),
+    def golpe_intensidad():
+        d = configuracion.DURACION_DESTELLO_GOLPE
+        obtenido = [round(intensidad_golpe(m, 10.0), 2) for m in (None, 10.0, 10.0 - d / 2, 10.0 - d, 11.0)]
+        revisar(obtenido == [0, 1, 0.5, 0, 0], "golpe: intensidad 1 → 0 y nada sin golpe", obtenido, [0, 1, 0.5, 0, 0])
+
+    def animar_primera():
+        _animaciones.clear()
+        obtenido = animar("prueba", 1)
+        revisar(obtenido == 1, "animar: la primera vez ya está", obtenido, 1)
+
+    def animar_transicion():
+        # Se fuerza el momento anterior para no depender del reloj.
+        _animaciones.clear()
+        animar("prueba", 0)
+        _animaciones["prueba"][1] -= configuracion.DURACION_BOTON
+        obtenido = round(animar("prueba", 1), 2)
+        revisar(0.93 <= obtenido <= 0.97, "animar: en DURACION_BOTON va por el 95 %", obtenido, "≈ 0,95")
+
+    def degradado_barras():
+        # Una barra de 10 px blanca desde el piso: tope blanco, base con BRILLO_BASE_BARRA.
+        pygame.init()
+        cuerpo = pygame.Surface((4, 20), pygame.SRCALPHA)
+        cuerpo.fill((0, 0, 0, 0))
+        pygame.draw.rect(cuerpo, (200, 200, 200), (0, 10, 4, 10))
+        degradar_barras(cuerpo, numpy.full(4, 10.0), False)
+        tope = cuerpo.get_at((1, 10))[0]
+        base = cuerpo.get_at((1, 19))[0]
+        esperado_base = 200 * (configuracion.BRILLO_BASE_BARRA + (1 - configuracion.BRILLO_BASE_BARRA) * 0.1)
+        bien = abs(tope - 200) <= 1 and abs(base - esperado_base) <= 2 and tope > base
+        revisar(bien, "barras: se oscurecen hacia la base", (tope, base), (200, round(esperado_base)))
+
+    def degradado_centro():
+        pygame.init()
+        cuerpo = pygame.Surface((2, 20), pygame.SRCALPHA)
+        pygame.draw.rect(cuerpo, (200, 200, 200), (0, 0, 2, 20))
+        degradar_barras(cuerpo, numpy.full(2, 20.0), True)
+        punta, medio, otra = cuerpo.get_at((0, 0))[0], cuerpo.get_at((0, 10))[0], cuerpo.get_at((0, 19))[0]
+        bien = medio < punta and medio < otra and abs(punta - otra) <= 22
+        revisar(bien, "centro: más oscuro en la línea media", (punta, medio, otra), "puntas > medio")
+
+    for nombre, prueba in [("golpe intensidad", golpe_intensidad), ("animar primera", animar_primera),
+                           ("animar transición", animar_transicion), ("degradado barras", degradado_barras),
+                           ("degradado centro", degradado_centro),
+                           ("color primer cuadro", colores_primero), ("color transición", colores_transicion),
                            ("color con distintos FPS", colores_fps), ("color llega", colores_llega),
                            ("cantidad de puntos", largo), ("pasa por las bandas", pasa_por_bandas),
                            ("no inventa picos", no_se_pasa), ("posiciones en orden", posiciones_crecen),

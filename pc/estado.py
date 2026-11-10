@@ -79,6 +79,7 @@ audio = {
     "frecuencia": None,                                      # Hz, para el afinador
     "cents": None,                                           # −50…+50, para el afinador
     "momento_golpe": None,                                   # time.monotonic() del último golpe
+    "nivel": None,                                           # dBFS del último bloque, para el medidor
 }
 # Último paquete armado para el Arduino (bytes) y los picos de ese momento:
 # el espejo de la OLED dibuja esto. None hasta el primer paquete.
@@ -164,7 +165,7 @@ def pedir_recalibracion(origen):
     ultimo_cambio = ("Recalibrando", origen, time.monotonic())
 
 
-def publicar_audio(alturas, destello, picos, nota, frecuencia, cents, momento_golpe):
+def publicar_audio(alturas, destello, picos, nota, frecuencia, cents, momento_golpe, nivel):
     """
     Guarda los resultados de un bloque de audio. La llama el callback
     (otro hilo): se copian los arreglos para que el callback los pueda
@@ -179,6 +180,7 @@ def publicar_audio(alturas, destello, picos, nota, frecuencia, cents, momento_go
         "frecuencia": frecuencia,
         "cents": cents,
         "momento_golpe": momento_golpe,
+        "nivel": nivel,
     }
 
 

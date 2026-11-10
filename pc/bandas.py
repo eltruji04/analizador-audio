@@ -8,6 +8,7 @@ bandas.py — Análisis de las 16 bandas de frecuencia y cálculo de las barras.
    para que las barras se vean bien con música fuerte o suave.
 3. Convierte los dB en alturas de barra entre 0 y ALTURA_MAXIMA.
 4. Suaviza las barras: suben enseguida y bajan a la velocidad de caída elegida.
+5. Mide el nivel general del bloque (dBFS), sin calibración, para el medidor.
 """
 
 import numpy
@@ -23,6 +24,20 @@ def a_mono(audio):
         # axis=1: promedia entre canales, muestra por muestra.
         return numpy.mean(audio, axis=1)
     return audio
+
+
+def nivel_db(muestras):
+    """
+    Nivel del bloque en dBFS: 0 es una onda que llega a ±1 todo el tiempo
+    (lo máximo sin saturar), −6 es la mitad de amplitud y el silencio da
+    −240. Se calcula con el valor eficaz (RMS), sin la calibración de las
+    bandas, para saber si la música está fuerte o baja.
+
+    Devuelve un float de Python: sounddevice da las muestras en float32 y
+    numpy devolvería un numpy.float32, que pygame no acepta como coordenada.
+    """
+    rms = numpy.sqrt(numpy.mean(numpy.square(muestras)))
+    return float(20 * numpy.log10(rms + 0.000000000001))
 
 
 def preparar_analisis(n, frecuencia_muestreo):
@@ -201,3 +216,32 @@ if __name__ == "__main__":
         print(f"n = {largo} → separación: {fs / largo} Hz")
         for numero, mascara in enumerate(mascaras):
             print(f"  banda {numero + 1}: {numpy.sum(mascara)} valores")
+
+    # nivel_db(): valores conocidos.
+    errores = 0
+    cuadrada = numpy.where(numpy.arange(1024) % 2 == 0, 1.0, -1.0)
+    seno = numpy.sin(2 * numpy.pi * 440 * numpy.arange(1024) / fs)
+    casos = [("cuadrada ±1 → 0 dB", cuadrada, 0.0),
+             ("cuadrada ±0,5 → −6 dB", cuadrada * 0.5, -6.02),
+             ("seno de amplitud 1 → −3 dB", seno, -3.01),
+             ("silencio → −240 dB", numpy.zeros(1024), -240.0)]
+    for nombre, muestras, esperado in casos:
+        try:
+            obtenido = nivel_db(muestras)
+            bien = abs(obtenido - esperado) < 0.05
+            errores += 0 if bien else 1
+            print(f"{'OK   ' if bien else 'ERROR'} {nombre:<30} → {obtenido:.2f}   (esperado {esperado})")
+        except Exception as e:
+            errores += 1
+            print(f"ERROR {nombre:<30} → {type(e).__name__}: {e}")
+    # Con muestras float32 (como las da sounddevice) tiene que devolver un
+    # float de Python: un numpy.float32 rompe el dibujo del medidor.
+    try:
+        obtenido = nivel_db(seno.astype(numpy.float32))
+        bien = type(obtenido) is float
+        errores += 0 if bien else 1
+        print(f"{'OK   ' if bien else 'ERROR'} {'float32 → float de Python':<30} → {type(obtenido).__name__}   (esperado float)")
+    except Exception as e:
+        errores += 1
+        print(f"ERROR {'float32 → float de Python':<30} → {type(e).__name__}: {e}")
+    print("nivel_db: todo bien" if errores == 0 else f"nivel_db: {errores} errores")

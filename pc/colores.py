@@ -18,6 +18,7 @@ TEXTO = (230, 237, 243)         # #E6EDF3
 TEXTO_SECUNDARIO = (154, 167, 181)  # #9AA7B5
 ACTIVO = (92, 200, 255)         # #5CC8FF
 PAUSA = (245, 165, 36)          # #F5A524
+ROJO = (248, 81, 73)            # #F85149, zona roja del medidor de nivel
 CONECTADO = (63, 185, 80)       # #3FB950
 DESCONECTADO = (110, 118, 129)
 OLED_ENCENDIDO = (220, 235, 255)  # #DCEBFF

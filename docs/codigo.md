@@ -288,10 +288,10 @@ Guarda dos cosas:
 | `dibujar()` | Atiende los eventos, toma `estado.audio` una vez, agrega un cuadro al historial del espectrograma cada ~47 ms y llama a cada zona de `dibujo.py`. Al final, `pygame.display.flip()` |
 | `simular(...)` | Solo para `python pc/visualizador.py`: inventa barras, golpes y notas para probar la ventana sin audio |
 
-**`dibujo.py`** tiene una función por zona (`encabezado`, `espectro`, `espejo_oled`, `tarjeta_nota`, `panel`, `pie`) y una por forma (`barras`, `onda`, `espectrograma`). Solo dibujan: leen el estado y los datos que les pasan. Los botones del panel se anotan en `dibujo.botones` como `(rectángulo, función)` mientras se dibujan, y se borran al empezar cada cuadro.
+**`dibujo.py`** tiene una función por zona (`encabezado`, `espectro`, `espejo_oled`, `tarjeta_nota`, `panel`, `pie`) y una por forma (`barras`, `onda`, `espectrograma`). `onda` dibuja la curva que arma `suavizar(alturas, pasos)`: una interpolación cúbica monótona (Fritsch–Carlson) con `PASOS_ONDA` puntos entre cada par de bandas, que pasa por cada tope y nunca sale del rango de las dos bandas vecinas. Solo dibujan: leen el estado y los datos que les pasan. Los botones del panel se anotan en `dibujo.botones` como `(rectángulo, función)` mientras se dibujan, y se borran al empezar cada cuadro.
 
 - `dibujar_oled(oled, paquete, picos)` reproduce la OLED **a partir del paquete**, no de los datos internos. Así lo que se ve en el espejo es exactamente lo que recibe el Arduino.
-- El destello de golpe se dibuja en una capa transparente detrás de la barra, para que se siga viendo el nivel real.
+- El destello de golpe se dibuja en una capa transparente detrás de la barra, para que se siga viendo el nivel real. En la forma onda no se dibuja: solo se encienden las tiras de los costados.
 
 **`colores.py`**: `color_banda(banda, modo, color_fijo, nota)` devuelve el color de una banda según el modo (fijo, arcoíris o nota; sin nota, el fijo). `MAPA_ESPECTROGRAMA` es una tabla de 256 colores de intensidad.
 

@@ -40,6 +40,8 @@ El objetivo del proyecto:
 - **Dos fuentes de audio:** el micrófono o lo que suena en la propia computadora, y se puede pasar de una a otra con el programa andando.
 - **Modos combinables:** forma (barras, desde el centro, onda o espectrograma) × color (fijo, arcoíris o según la nota que suena). La OLED muestra barras o desde el centro; con onda y espectrograma, muestra barras.
 - **Efectos:** marca de pico, destello con cada golpe del bombo y tres velocidades de caída de las barras.
+- **Tempo y nivel:** el BPM calculado con los golpes del bombo y un medidor del volumen real, junto al espectro.
+- **Recuerda la configuración:** forma, color, caída y efectos quedan como la última vez (en `pc/preferencias.json`).
 - **Control desde tres lugares sincronizados:** la ventana de la computadora, los botones de la caja y la app de Blynk. La computadora es la única dueña del estado.
 - **Visualizador en la computadora:** el espectro en alta resolución, un espejo de la OLED y un panel de control.
 - **Funciona sin Arduino:** si no está conectado (o se desconecta), el análisis y el visualizador siguen andando, y al enchufarlo en cualquier puerto USB se conecta solo.

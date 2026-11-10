@@ -91,11 +91,11 @@ sounddevice ──► bloque (1024 muestras, estéreo)
                   │ calcular_bandas  (Hann + FFT + suma por banda)
                   ▼
                 energías ──► dB ──┬──────────────► golpe.detectar ──► destello
-                                  │ promediar
+                                  │ promediar (dos veces)
                                   ▼
-                               db_suave
-                                  │ actualizar_niveles (piso/techo)
-                                  │ a_alturas
+                 db_suave (parejo) ──► actualizar_niveles (piso/techo)
+                 db_barras (sin promedio al subir)
+                                  │ a_alturas (con ese piso y techo)
                                   ▼
                                alturas 0–32
                                   │ suavizar (caída) · actualizar_picos
@@ -142,13 +142,14 @@ mono = a_mono(bloque)
 correr memoria hacia la izquierda y poner mono al final
 energias = calcular_bandas(memoria)
 db = 10·log10(energias + 1e-12)              # silencio = −120 dB
-db_suave = promedio(db_suave, db)
+db_suave  = promedio(db_suave, db, 0,7 al subir, 0,7 al bajar)   # calibración
+db_barras = promedio(db_barras, db, 0 al subir, 0,7 al bajar)     # barras
 
 si se pidió recalibrar:
     techo = db_suave + margen;  piso = techo − rango;  picos = 0
 
 actualizar_niveles(piso, techo, db_suave)
-alturas = a_alturas(db_suave, piso, techo)
+alturas = a_alturas(db_barras, piso, techo)
 suavizar(mostradas, alturas, caída elegida)
 actualizar_picos(picos, mostradas)
 
@@ -190,7 +191,7 @@ Toda la matemática del análisis. Las funciones que actualizan arreglos los mod
 | `a_mono(audio)` | Promedia los canales si el audio es estéreo |
 | `preparar_analisis(n, fs)` | Se llama **una vez**. Calcula la ventana de Hann y, para cada banda, una máscara de `True`/`False` con los valores del espectro que le tocan |
 | `calcular_bandas(muestras, ventana, mascaras)` | `rfft` de las muestras con la ventana, eleva al cuadrado (potencia) y suma la potencia de cada máscara. Devuelve 16 energías |
-| `promediar(db_suave, db)` | `db_suave = 0,7·db_suave + 0,3·db`. Calma el ruido de los graves, que se calculan con solo 2 valores del espectro |
+| `promediar(db_suave, db, subida, bajada)` | `db_suave = p·db_suave + (1 − p)·db`, con `p = subida` en las bandas que suben y `p = bajada` en las que bajan. Calma el ruido de los graves, que se calculan con solo 2 valores del espectro. Se usa parejo (0,7 y 0,7) para la calibración y sin promedio al subir (0 y 0,7) para las barras: así un aumento brusco se ve en ~64 ms y el ruido no empuja el techo |
 | `niveles_iniciales()` | Techo en `TECHO_INICIAL_DB` y piso `RANGO_MAXIMO_DB` más abajo |
 | `actualizar_niveles(piso, techo, db)` | Calibración automática (ver abajo) |
 | `a_alturas(db, piso, techo)` | `(db − piso) / (techo − piso) · 32`, limitado a 0–32 |
@@ -220,7 +221,8 @@ Por qué así: si el piso siguiera enseguida cada pozo del ruido, el ruido de fo
 
 | Función | Qué hace |
 |---|---|
-| `detectar(db, techo, ahora)` | Devuelve `True` si en este bloque hubo un golpe |
+| `detectar(db, techo, ahora)` | Devuelve `True` si en este bloque hubo un golpe, y anota su momento en `momentos` |
+| `estimar_bpm(momentos, ahora)` | Tempo entero entre `BPM_MINIMO` y `BPM_MAXIMO`, o `None`: mediana baja (un intervalo de verdad) de los intervalos de los últimos `BPM_VENTANA` s, promedio de los que quedan a menos de `BPM_TOLERANCIA` de ella, y doblar o dividir por 2 |
 
 ```
 subida = db[graves] − anterior[graves]
@@ -254,7 +256,7 @@ Las pruebas (`python pc/nota.py`) generan tonos, acordes de guitarra, ruido y vo
 Guarda dos cosas:
 
 1. **Estado del sistema:** `velocidad`, `pausa`, `pico`, `golpe`, `afinador`, `forma`, `color`, `color_fijo`, `fuente`, las conexiones y `ultimo_cambio`.
-2. **Últimos resultados:** `audio` (alturas, destello, picos, nota, frecuencia, cents, momento del golpe y nivel en dBFS) y `ultimo_paquete` con sus `picos_enviados`.
+2. **Últimos resultados:** `audio` (alturas, destello, picos, nota, frecuencia, cents, momento del golpe, nivel en dBFS y BPM) y `ultimo_paquete` con sus `picos_enviados`.
 
 | Función | Qué hace |
 |---|---|
@@ -263,6 +265,8 @@ Guarda dos cosas:
 | `siguiente(campo, origen)` | Pasa al valor siguiente de la lista y vuelve al primero (velocidad, forma, color) |
 | `aplicar_accion(codigo, origen)` | Traduce un código de botón (1 a 4) en `siguiente("velocidad")` o `alternar(...)`. La usan los botones del Arduino |
 | `pedir_recalibracion(origen)` | Levanta `pedido_recalibrar`; el callback de audio lo atiende en el próximo bloque |
+| `guardar_preferencias()` | La llama `cambiar()` cuando cambia uno de `CAMPOS_GUARDADOS`: escribe un `.tmp` y lo pone en lugar de `ARCHIVO_PREFERENCIAS`, con un candado porque los cambios llegan de varios hilos |
+| `cargar_preferencias()` | Al arrancar (en `principal.py` y en la prueba de `visualizador.py`): aplica los campos válidos del archivo sin avisar a los suscriptores; ignora con un aviso los inválidos o un archivo roto |
 | `publicar_audio(...)` | Reemplaza `audio` entero con copias (ver [Los dos hilos](#los-dos-hilos)) |
 | `publicar_paquete(paquete, picos)` | Guarda el último paquete para el espejo de la OLED |
 

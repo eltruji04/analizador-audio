@@ -156,7 +156,8 @@ Para ajustar el comportamiento:
 | `INTERVALO_BUSQUEDA` | Cada cuántos segundos se intenta conectar el Arduino mientras no está (1 s). |
 | `VELOCIDADES_CAIDA`, `VELOCIDAD_INICIAL` | Píxeles por bloque que bajan las barras en cada velocidad (lenta, normal, rápida) y con cuál arranca. |
 | `CAIDA_PICO` | Qué tan rápido baja la marca de pico. |
-| `PROMEDIO_DB` | Cuánto se promedia el nivel de cada banda entre bloques (0 = sin promedio). |
+| `PROMEDIO_SUBIDA_DB`, `PROMEDIO_BAJADA_DB` | Cuánto se promedia el nivel de las barras cuando sube y cuando baja (0 = sin promedio). Subir el de subida (por ejemplo a 0,3) calma el temblor de los graves a cambio de una subida un poco más lenta. |
+| `PROMEDIO_CALIBRACION_DB` | Promedio parejo del nivel que usa la calibración automática del piso y el techo. |
 | `RANGO_MINIMO_DB`, `RANGO_MAXIMO_DB`, `TECHO_MINIMO_DB`, `TECHO_INICIAL_DB`, `DISTANCIA_MAXIMA_DB` | Límites de la calibración automática (explicados en `bandas.actualizar_niveles`). |
 | `VELOCIDAD_TECHO_DB`, `VELOCIDAD_PISO_BAJA_DB`, `VELOCIDAD_PISO_SUBE_DB` | Qué tan rápido se mueven el techo y el piso de cada banda. |
 | `RECALIBRAR_MARGEN_DB`, `RECALIBRAR_RANGO_DB` | Dónde quedan el techo y el piso al recalibrar con la tecla `R`. |
@@ -172,6 +173,8 @@ Para ajustar el comportamiento:
 | `OPACIDAD_PULSO_GOLPE` | Cuánto se aclara el fondo del espectro con cada golpe (0 lo apaga). |
 | `DURACION_FUNDIDO_FORMA`, `DURACION_BOTON` | Segundos del fundido al cambiar de forma y de la animación de los botones. |
 | `NIVEL_MINIMO_DB`, `NIVEL_AMARILLO_DB`, `NIVEL_ROJO_DB`, `NIVEL_CAIDA_DB` | Medidor de nivel: rango, zonas de color y qué tan rápido baja. |
+| `BPM_VENTANA`, `BPM_MINIMO_GOLPES`, `BPM_SIN_GOLPES`, `BPM_MINIMO`, `BPM_MAXIMO`, `BPM_TOLERANCIA` | Cálculo del tempo (explicados en `golpe.estimar_bpm`). |
+| `ARCHIVO_PREFERENCIAS` | Dónde se guarda la configuración elegida (`pc/preferencias.json`). Para volver a los valores de siempre, borrar ese archivo. |
 
 ### Firmware del Arduino
 

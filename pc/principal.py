@@ -358,6 +358,8 @@ def atender_botones():
 
 # Solo se ejecuta con `python pc/principal.py`, no al importar el módulo.
 if __name__ == "__main__":
+    # La forma, el color, la caída y los efectos de la última vez.
+    estado.cargar_preferencias()
     # Un hilo busca el Arduino todo el tiempo: si no está enchufado al
     # arrancar, o se desconecta en el medio, se conecta solo al enchufarlo.
     print("Buscando el Arduino…")

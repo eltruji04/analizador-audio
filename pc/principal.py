@@ -60,9 +60,11 @@ memoria = numpy.zeros(n)
 memoria_lados = numpy.zeros(n)
 # Piso y techo de cada banda, en dB. Se ajustan solos con la música.
 piso, techo = bandas.niveles_iniciales()
-# Nivel de cada banda (dB) promediado entre bloques. None hasta el primer
-# bloque, que lo inicializa con su propio nivel.
+# Nivel de cada banda (dB) promediado entre bloques, dos veces: db_suave,
+# parejo, para la calibración, y db_barras, sin promedio al subir, para la
+# altura de las barras. None hasta el primer bloque, que los inicializa.
 db_suave = None
+db_barras = None
 # Altura que se muestra de cada barra, ya suavizada. Empieza vacía.
 mostradas = numpy.zeros(configuracion.CANTIDAD_BARRAS)
 # Relleno de golpe: las BARRAS_GOLPE suben a ALTURA_MAXIMA con cada golpe y
@@ -110,7 +112,7 @@ def al_recibir_bloque(bloque, cantidad_muestras, tiempo, aviso):
 
     Corre en un hilo aparte (el de sounddevice), no en el bucle principal.
     """
-    global ultimo_envio, pausa_enviada, db_suave, momento_golpe
+    global ultimo_envio, pausa_enviada, db_suave, db_barras, momento_golpe
 
     # `aviso` está vacío si no hubo problemas; si se perdió audio, lo muestra.
     if aviso:
@@ -140,11 +142,15 @@ def al_recibir_bloque(bloque, cantidad_muestras, tiempo, aviso):
     db = 10 * numpy.log10(energias + 0.000000000001)
 
     # Promedio entre bloques: calma los saltos del ruido, sobre todo en los
-    # graves. El primer bloque solo inicializa el promedio.
+    # graves. El primer bloque solo inicializa los promedios.
+    # - db_suave: parejo, para la calibración (así el ruido no empuja el techo).
+    # - db_barras: sin promedio al subir, para que un aumento brusco se vea enseguida.
     if db_suave is None:
         db_suave = db.copy()
+        db_barras = db.copy()
     else:
-        bandas.promediar(db_suave, db)
+        bandas.promediar(db_suave, db, configuracion.PROMEDIO_CALIBRACION_DB, configuracion.PROMEDIO_CALIBRACION_DB)
+        bandas.promediar(db_barras, db, configuracion.PROMEDIO_SUBIDA_DB, configuracion.PROMEDIO_BAJADA_DB)
 
     # Recalibración pedida con la tecla R
     if estado.pedido_recalibrar:
@@ -157,7 +163,7 @@ def al_recibir_bloque(bloque, cantidad_muestras, tiempo, aviso):
     # lo que está sonando, así se ve bien con música fuerte o suave.
     bandas.actualizar_niveles(piso, techo, db_suave)
     # dB → altura entre 0 (en el piso) y ALTURA_MAXIMA (en el techo).
-    alturas = bandas.a_alturas(db_suave, piso, techo)
+    alturas = bandas.a_alturas(db_barras, piso, techo)
     caida = configuracion.VELOCIDADES_CAIDA[estado.velocidad]
     # Suavizado: las barras suben enseguida y bajan 'caida' px por bloque.
     bandas.suavizar(mostradas, alturas, caida)
@@ -180,7 +186,9 @@ def al_recibir_bloque(bloque, cantidad_muestras, tiempo, aviso):
     # Todo lo que dibuja el visualizador, de una sola vez.
     # Nivel general del bloque (sin calibración), para el medidor de la ventana.
     nivel = bandas.nivel_db(mono)
-    estado.publicar_audio(mostradas, destello, picos, numero_nota, frecuencia, cents, momento_golpe, nivel)
+    # Tempo con los golpes detectados (aunque el efecto de golpe esté apagado).
+    bpm = golpe.estimar_bpm(golpe.momentos, ahora)
+    estado.publicar_audio(mostradas, destello, picos, numero_nota, frecuencia, cents, momento_golpe, nivel, bpm)
 
     # Se lee una sola vez: el botón la cambia desde otro hilo, y así el
     # `if` y el paquete usan el mismo valor aunque cambie en el medio.
@@ -225,7 +233,7 @@ def elegir_dispositivo(fuente):
     Si el dispositivo nuevo no está (por ejemplo, BlackHole sin instalar),
     vuelve a la fuente anterior. Al empezar no hay anterior: da ValueError.
     """
-    global fuente_abierta, db_suave
+    global fuente_abierta, db_suave, db_barras
     nombre = nombre_dispositivo(fuente)
     try:
         numero = captura.buscar_dispositivo(nombre)
@@ -246,6 +254,7 @@ def elegir_dispositivo(fuente):
         memoria[:] = 0
         memoria_lados[:] = 0
         db_suave = None
+        db_barras = None
         estado.pedido_recalibrar = True
     fuente_abierta = fuente
     print(f"Usando dispositivo: {nombre}")
@@ -308,6 +317,9 @@ def atender_botones():
 
 # Solo se ejecuta con `python pc/principal.py`, no al importar el módulo.
 if __name__ == "__main__":
+    # La forma, el color, la caída y los efectos de la última vez.
+    estado.cargar_preferencias()
+
     # Se intenta abrir el puerto del Arduino. Si no está enchufado (o el
     # Monitor Serie del IDE lo tiene ocupado), se sigue sin enviar en vez
     # de cortar el programa.

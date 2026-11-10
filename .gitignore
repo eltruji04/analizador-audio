@@ -3,6 +3,8 @@ __pycache__/
 *.pyc
 .DS_Store
 .env
+pc/preferencias.json
+pc/preferencias.json.tmp
 pc/medir_niveles.py
 pc/prueba_sin_audio.py
 arduino/prueba_boton/prueba_boton.ino

@@ -222,6 +222,7 @@ def espectro(superficie, datos, historial, ahora, zona=ESPECTRO):
     fondo = colores.mezclar(colores.TARJETA, colores.ACTIVO, configuracion.OPACIDAD_PULSO_GOLPE * golpe)
     tarjeta(superficie, zona, "Espectro", detalle, fondo)
     medidor_nivel(superficie, zona, datos["nivel"], ahora)
+    indicador_bpm(superficie, zona, datos["bpm"], golpe)
 
     # Área de dibujo: deja lugar al título arriba, a las etiquetas abajo y
     # a las tiras de golpe a los costados.
@@ -300,6 +301,20 @@ def reflejo(superficie, area, alto):
     alfa[:] = (255 * opacidad[None, :]).astype(numpy.uint8)
     del alfa
     superficie.blit(imagen, (area.x, area.bottom))
+
+
+def indicador_bpm(superficie, zona, bpm, golpe):
+    """
+    Tempo a la derecha del medidor de nivel: un punto que se enciende con
+    cada golpe y "120 BPM". Sin tempo (pocos golpes o la música paró),
+    "— BPM" en gris.
+    """
+    x = zona.x + 110 + ANCHO_MEDIDOR + 64
+    y = zona.y + 22
+    pygame.draw.circle(superficie, colores.mezclar(colores.BORDE, colores.ACTIVO, golpe), (x + 4, y), 4)
+    numero = texto(superficie, "—" if bpm is None else str(bpm), "mono",
+                   colores.TEXTO_SECUNDARIO if bpm is None else colores.TEXTO, (x + 14, y), "midleft")
+    texto(superficie, "BPM", "mono_chica", colores.TEXTO_SECUNDARIO, (numero.right + 5, y + 1), "midleft")
 
 
 # Nivel mostrado en el medidor (dB) y momento del último cuadro: sube enseguida

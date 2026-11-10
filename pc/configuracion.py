@@ -9,6 +9,8 @@ Los nombres de los dispositivos de audio y PUERTO_SERIE dependen de cada
 computadora: cada uno los ajusta en la suya.
 """
 
+import os
+
 # --- Captura de audio ---
 FRECUENCIA_MUESTREO = 48000   # muestras por segundo (Hz)
 TAMANO_BLOQUE = 1024          # muestras por bloque que entrega sounddevice (~21 ms)
@@ -56,16 +58,22 @@ RECALIBRAR_RANGO_DB = 25.0
 VELOCIDAD_PISO_BAJA_DB = 0.02  # dB por bloque que baja el piso (~0,9 dB/s)
 VELOCIDAD_PISO_SUBE_DB = 0.1   # dB por bloque que sube el piso (~4,7 dB/s)
 # Peso del nivel anterior al promediar los dB entre bloques (0 = sin
-# promedio). Con 0,7 el ruido deja de saltar de un bloque al otro; la
-# mitad de un cambio se ve en unos 2 bloques (~40 ms).
-PROMEDIO_DB = 0.7
+# promedio, ver bandas.promediar). Hay dos promedios:
+# - Calibración (piso y techo): parejo, 0,7 al subir y al bajar. Con 0,7 el
+#   ruido de los graves deja de saltar y no empuja el techo para arriba.
+# - Barras: sin promedio al subir, así un aumento brusco de volumen se ve
+#   en ~64 ms (con 0,7 tardaba 190 a 450 ms); al bajar, 0,7. Los graves
+#   tiemblan un poco más (medido con ruido rosa: p95 de 4,4 a 9 px).
+PROMEDIO_CALIBRACION_DB = 0.7
+PROMEDIO_SUBIDA_DB = 0.0
+PROMEDIO_BAJADA_DB = 0.7
 TECHO_INICIAL_DB = 25.0      # techo con el que arranca cada banda
 DISTANCIA_MAXIMA_DB = 35     # un techo no queda más de esto por debajo del techo más alto
 
 # --- Caída de las barras ---
 # Píxeles que baja cada barra por bloque, según la velocidad elegida con el
 # botón de caída: 0 = lento, 1 = normal, 2 = rápido.
-VELOCIDADES_CAIDA = [1.0, 2.0, 4.0]
+VELOCIDADES_CAIDA = [0.7, 1.0, 2.0]
 VELOCIDAD_INICIAL = 1  # índice en VELOCIDADES_CAIDA: arranca en la velocidad normal
 
 # --- Botones ---
@@ -155,3 +163,16 @@ BANDAS_DETECCION_GOLPE = [0, 1]   # bandas graves que se miran para detectar el 
 GOLPE_SUBIDA_DB = 6.0             # dB que tienen que subir los graves respecto del bloque anterior
 GOLPE_DISTANCIA_TECHO_DB = 15.0   # los graves tienen que quedar a menos de esto de su techo
 GOLPE_ESPERA = 0.15               # segundos sin aceptar otro golpe después de uno
+
+# --- Tempo (BPM, ver golpe.estimar_bpm) ---
+BPM_VENTANA = 8.0                 # segundos de golpes que se usan para calcular el tempo
+BPM_MINIMO_GOLPES = 4             # con menos golpes en la ventana no se muestra tempo
+BPM_SIN_GOLPES = 3.0              # si pasa esto sin golpes, el tempo se borra (la música paró)
+BPM_MINIMO = 70                   # el tempo se dobla o se divide por 2 hasta quedar
+BPM_MAXIMO = 180                  # entre BPM_MINIMO y BPM_MAXIMO (evita 60 o 240 por un bombo cada 2 tiempos)
+BPM_TOLERANCIA = 0.25             # se promedian los intervalos a menos de este 25 % de la mediana
+
+# --- Preferencias guardadas (ver estado.guardar_preferencias) ---
+# Archivo donde se guarda la configuración elegida, al lado de este .py.
+# No va al repositorio (está en .gitignore): es de cada computadora.
+ARCHIVO_PREFERENCIAS = os.path.join(os.path.dirname(os.path.abspath(__file__)), "preferencias.json")

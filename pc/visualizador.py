@@ -22,6 +22,7 @@ import colores
 import configuracion
 import dibujo
 import estado
+import golpe
 
 # Teclas y la acción de cada una (todas con origen "compu").
 TECLAS = {
@@ -160,6 +161,9 @@ def cerrar():
 
 # --- Prueba con datos simulados (sin audio ni Arduino) ------------------------
 
+# Momentos de los golpes inventados, para calcular el tempo como con audio real.
+golpes_simulados = collections.deque(maxlen=64)
+
 def simular(ahora, dt, mostradas, destello, picos, ultimo_golpe):
     """
     Inventa los datos de un cuadro como si vinieran del audio: barras que
@@ -182,6 +186,7 @@ def simular(ahora, dt, mostradas, destello, picos, ultimo_golpe):
 
     if ahora - ultimo_golpe >= 0.5:
         ultimo_golpe = ahora
+        golpes_simulados.append(ahora)
         if estado.golpe:
             destello[configuracion.BARRAS_GOLPE] = configuracion.ALTURA_MAXIMA
     # Como en principal.py: el golpe solo se marca con el efecto activo.
@@ -193,7 +198,8 @@ def simular(ahora, dt, mostradas, destello, picos, ultimo_golpe):
     frecuencia = 440 * 2 ** ((48 + nota - 69 + cents / 100) / 12)
     # Nivel general: entre −30 y −6 dB más o menos, que sube con cada golpe.
     nivel = -18 + 8 * numpy.sin(t * 0.7) + (6 if ahora - ultimo_golpe < 0.1 else 0)
-    estado.publicar_audio(mostradas, destello, picos, nota, frecuencia, cents, momento_golpe, nivel)
+    bpm = golpe.estimar_bpm(golpes_simulados, ahora)
+    estado.publicar_audio(mostradas, destello, picos, nota, frecuencia, cents, momento_golpe, nivel, bpm)
     return ultimo_golpe
 
 
@@ -202,6 +208,7 @@ if __name__ == "__main__":
     # con datos inventados, para probar el dibujo y el panel sin audio.
     # Se cierra con la ✕.
     import serie
+    estado.cargar_preferencias()
     iniciar()
     aviso_pie = "datos simulados"
     print("Prueba del visualizador con datos simulados: se cierra con la ✕ de la ventana")

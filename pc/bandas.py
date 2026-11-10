@@ -73,17 +73,21 @@ def calcular_bandas(muestras, ventana, mascaras):
     return numpy.array(energias)
 
 
-def promediar(db_suave, db):
+def promediar(db_suave, db, subida, bajada):
     """
     Mezcla el nivel nuevo de cada banda (`db`) con el promedio de los
-    bloques anteriores (`db_suave`): PROMEDIO_DB del anterior y el resto
-    del nuevo. Modifica `db_suave` por dentro (con [:]).
+    bloques anteriores (`db_suave`): un peso del anterior y el resto del
+    nuevo. El peso es `subida` en las bandas donde el nivel nuevo es más
+    alto y `bajada` donde es más bajo (0 = sin promedio, se toma el nuevo).
+    Modifica `db_suave` por dentro (con [:]).
 
     Sirve sobre todo para los graves: las bandas 1 y 2 se calculan con
     solo 2 valores del espectro, y sin promedio el ruido les hace saltar
-    el nivel unos 3 a 5 dB de un bloque al otro.
+    el nivel unos 3 a 5 dB de un bloque al otro. principal.py lo usa dos
+    veces: parejo para la calibración y sin promedio al subir para las
+    barras (ver PROMEDIO_* en configuracion.py).
     """
-    p = configuracion.PROMEDIO_DB
+    p = numpy.where(db > db_suave, subida, bajada)
     db_suave[:] = p * db_suave + (1 - p) * db
 
 
@@ -245,3 +249,41 @@ if __name__ == "__main__":
         errores += 1
         print(f"ERROR {'float32 → float de Python':<30} → {type(e).__name__}: {e}")
     print("nivel_db: todo bien" if errores == 0 else f"nivel_db: {errores} errores")
+
+    # promediar(db_suave, db, subida, bajada)
+    errores_promedio = 0
+
+    def revisar_promedio(nombre, obtenido, esperado):
+        global errores_promedio
+        bien = numpy.allclose(obtenido, esperado)
+        errores_promedio += 0 if bien else 1
+        print(f"{'OK   ' if bien else 'ERROR'} {nombre:<44} → {numpy.round(obtenido, 2).tolist()}   (esperado {esperado})")
+
+    casos_promedio = [
+        # (nombre, anterior, nuevo, subida, bajada, esperado)
+        ("sin promedio al subir: toma el nuevo", [-40.0], [-10.0], 0.0, 0.7, [-10.0]),
+        ("al bajar promedia con 0,7", [-10.0], [-40.0], 0.0, 0.7, [-19.0]),
+        ("parejo 0,7 al subir (calibración)", [-40.0], [-10.0], 0.7, 0.7, [-31.0]),
+        ("parejo 0,7 al bajar (calibración)", [-10.0], [-40.0], 0.7, 0.7, [-19.0]),
+        ("cada banda según suba o baje", [-40.0, -10.0], [-10.0, -40.0], 0.0, 0.7, [-10.0, -19.0]),
+        ("igual que antes: no cambia", [-20.0], [-20.0], 0.0, 0.7, [-20.0]),
+        ("sin promedio en nada: toma el nuevo", [-10.0, -40.0], [-40.0, -10.0], 0.0, 0.0, [-40.0, -10.0]),
+    ]
+    for nombre, anterior, nuevo, subida, bajada, esperado in casos_promedio:
+        try:
+            db_suave = numpy.array(anterior)
+            promediar(db_suave, numpy.array(nuevo), subida, bajada)
+            revisar_promedio(nombre, db_suave, esperado)
+        except Exception as e:
+            errores_promedio += 1
+            print(f"ERROR {nombre:<44} → {type(e).__name__}: {e}")
+
+    # Subida brusca de 30 dB con los valores de configuracion.py: en 1 bloque llega.
+    try:
+        db_suave = numpy.array([-40.0])
+        promediar(db_suave, numpy.array([-10.0]), configuracion.PROMEDIO_SUBIDA_DB, configuracion.PROMEDIO_BAJADA_DB)
+        revisar_promedio("configuración: subida brusca en 1 bloque", db_suave, [-10.0])
+    except Exception as e:
+        errores_promedio += 1
+        print(f"ERROR configuración subida → {type(e).__name__}: {e}")
+    print("promediar: todo bien" if errores_promedio == 0 else f"promediar: {errores_promedio} errores")

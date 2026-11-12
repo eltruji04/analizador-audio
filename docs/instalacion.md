@@ -13,6 +13,7 @@ Guía detallada para preparar el entorno en macOS y Linux. El resumen está en e
 - [Configuración](#configuración)
   - [Programa de la computadora](#programa-de-la-computadora)
   - [Firmware del Arduino](#firmware-del-arduino)
+  - [Blynk (opcional)](#blynk-opcional)
 - [Pruebas por módulo](#pruebas-por-módulo)
 
 ---
@@ -20,7 +21,7 @@ Guía detallada para preparar el entorno en macOS y Linux. El resumen está en e
 ## Requisitos
 
 - **Python:** desarrollado con 3.14.
-- **Git** y una cuenta de GitHub con acceso al repositorio.
+- **Git**, para clonar el repositorio.
 - **Arduino IDE** para cargar el firmware en el Uno, con las librerías *Adafruit SSD1306* y *Adafruit GFX Library* (ver [Firmware del Arduino](#firmware-del-arduino)).
 - **VS Code** (recomendado) con la extensión *Python* de Microsoft.
 
@@ -64,9 +65,7 @@ Hay que **reiniciar** la Mac después de instalarlo. Luego:
 
 ## Instalación en Linux
 
-**[SIN VERIFICAR — todo este apartado está pendiente de probar en las computadoras del equipo.]**
-
-Antes de este apartado, completar la **configuración inicial de Git y GitHub** (ver la [guía de Git](guia_git.md#configuración-inicial-una-sola-vez-por-computadora)).
+**[SIN VERIFICAR — todavía no se probó este apartado en Linux.]**
 
 ### 1. Dependencias del sistema
 
@@ -89,7 +88,7 @@ source .venv/bin/activate
 pip install -r requirements.txt
 ```
 
-Si `pip install` falla por alguna versión de `requirements.txt` que no existe para su versión de Python, avisar al equipo en lugar de cambiar el archivo por su cuenta.
+Si `pip install` falla porque alguna versión de `requirements.txt` no existe para tu versión de Python, probá con Python 3.14 o abrí un [issue](https://github.com/eltruji04/analizador-audio/issues) con el error.
 
 ### 3. Permisos del puerto serie
 
@@ -179,11 +178,37 @@ Para ajustar el comportamiento:
 ### Firmware del Arduino
 
 1. En el Arduino IDE, **Herramientas → Administrar bibliotecas**, instalar **Adafruit SSD1306** (acepta instalar también **Adafruit GFX Library**).
-2. Abrir [`arduino/botones_oled/botones_oled.ino`](../arduino/botones_oled/botones_oled.ino).
+2. Abrir [`arduino/analizador_oled/analizador_oled.ino`](../arduino/analizador_oled/analizador_oled.ino).
 3. Elegir la placa **Arduino Uno** y su puerto, y **cargar**.
 4. **Cerrar el Monitor Serie** antes de correr `principal.py`: si está abierto, ocupa el puerto.
 
-`PRUEBA_TEXTO` en el `.ino` tiene que valer `0` para usarlo con la computadora. Con `1` el Arduino lee los paquetes como texto escrito en el Monitor Serie (para probar la pantalla sin Python).
+Las conexiones de la OLED, los botones y los LEDs están en [diseno.md → Hardware](diseno.md#hardware).
+
+### Blynk (opcional)
+
+Sin Blynk el programa funciona igual: al arrancar avisa `Blynk sin conectar` y sigue. Para controlarlo desde el celular:
+
+1. En [blynk.cloud](https://blynk.cloud), crear una plantilla con estos **datastreams** (pines virtuales, tipo entero):
+
+   | Pin | Campo | Valores |
+   |---|---|---|
+   | `V0` | Velocidad de caída | `0` lenta, `1` normal, `2` rápida |
+   | `V1` | Pausa | `0` / `1` |
+   | `V2` | Marca de pico | `0` / `1` |
+   | `V3` | Golpe | `0` / `1` |
+   | `V4` | Afinador | `0` / `1` |
+   | `V5` | Forma | `0` barras, `1` centro, `2` onda, `3` espectrograma |
+   | `V6` | Color | `0` fijo, `1` arcoíris, `2` nota |
+   | `V7` | Color fijo | `0` a `4` (índice en `COLORES_FIJOS`) |
+
+2. Crear un dispositivo con esa plantilla y copiar su **token**.
+3. Crear un archivo `.env` en la raíz del proyecto con esta línea:
+
+   ```
+   BLYNK_AUTH_TOKEN=<tu token>
+   ```
+
+El `.env` está en `.gitignore`: el token es una clave privada y no se sube nunca al repositorio. Cómo se sincroniza la app con la compu: [diseno.md → App en Blynk](diseno.md#app-en-blynk).
 
 ---
 

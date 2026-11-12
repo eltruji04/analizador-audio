@@ -46,7 +46,7 @@ Explica cómo está organizado el código, qué hacen las funciones más importa
 | `captura.py` | Busca el dispositivo de audio por nombre y captura de forma continua; reabre la captura cuando cambia la fuente |
 | `bandas.py` | Matemática del análisis: FFT por bandas, calibración, alturas, suavizado y picos |
 | `golpe.py` | Detecta golpes del bombo |
-| `nota.py` | Estima la nota (pendiente) |
+| `nota.py` | Estima la nota del acorde y la del afinador |
 | `estado.py` | Estado del sistema (modos) y últimos resultados del audio. Única forma de cambiar un modo |
 | `serie.py` | Busca el puerto del Arduino, arma el paquete y lee los botones |
 | `visualizador.py` | Ventana: eventos, teclas y orden de dibujo |
@@ -313,16 +313,16 @@ Solo constantes, agrupadas por tema (captura, bandas, puerto serie, paquete, cal
 
 ## Firmware del Arduino
 
-[`botones_oled.ino`](../arduino/botones_oled/botones_oled.ino):
+[`analizador_oled.ino`](../arduino/analizador_oled/analizador_oled.ino):
 
 | Función | Qué hace |
 |---|---|
-| `setup()` | Abre el serie a 115200, configura los botones con `INPUT_PULLUP`, inicia la OLED en `0x3C` con I2C a 400 kHz y muestra la pantalla de espera |
+| `setup()` | Abre el serie a 115200, configura los botones con `INPUT_PULLUP` y los LEDs como salida, inicia la OLED en `0x3C` con I2C a 400 kHz y muestra la pantalla de espera |
 | `loop()` | Revisa los botones, lee todos los bytes que llegaron con `procesarByte` y, si se completó un paquete, redibuja |
 | `procesarByte(b)` | Máquina de estados del paquete (ver abajo). Devuelve `true` cuando se completó uno |
-| `dibujarPantalla()` | Dibuja las 16 barras en segmentos de 2 px, la marca de pico, el símbolo de pausa, `MIC`/`LINE` y la nota |
+| `dibujarPantalla()` | Dibuja las 16 barras (desde el piso en segmentos de 2 px, o desde el centro según `centro`), la marca de pico, el símbolo de pausa, `MIC`/`LINE` y la nota, y enciende el LED de la fuente |
 | `revisarBotones()` | Antirrebote de 50 ms; cuando un botón pasa a apretado (`LOW`), manda su código con `Serial.write` |
-| `pantallaInicial()`, `CIRCULO()` | Pantalla de espera y símbolo de pausa |
+| `pantallaInicial()`, `SIMBOLOPAUSA()` | Pantalla de espera y símbolo de pausa |
 
 **`procesarByte`:**
 
@@ -330,15 +330,15 @@ Solo constantes, agrupadas por tema (captura, bandas, puerto serie, paquete, cal
 si b == 255 → empezar paquete nuevo (datonum = 0, leyendo = true)
 si no estoy leyendo → ignorar
 guardar b en datos[datonum]; datonum++
-si todavía no llegaron 20 → seguir esperando
+si todavía no llegaron 21 → seguir esperando
 paquete completo:
     niveles = datos[0..15] / 2       # 0–32 → 0–16 segmentos
-    modo, nota, pausa, pico = datos[16..19]
+    modo, nota, pausa, pico, centro = datos[16..20]
     actualizar alturaPico (sube con la barra, baja 1 cada 3 paquetes)
     leyendo = false
 ```
 
-Como el 255 reinicia la cuenta, si se pierde un byte el Arduino se vuelve a sincronizar con el próximo paquete. Hoy lee 20 bytes y no el 21 (forma), así que siempre dibuja barras desde el piso: leer la forma está pendiente en el firmware (ver [Forma en la OLED](protocolo_serie.md#forma-en-la-oled-byte-21)).
+Como el 255 reinicia la cuenta, si se pierde un byte el Arduino se vuelve a sincronizar con el próximo paquete. El byte 21 (`centro`) elige si las barras se dibujan desde el piso o desde el centro (ver [Forma en la OLED](protocolo_serie.md#forma-en-la-oled-byte-21)).
 
 ---
 

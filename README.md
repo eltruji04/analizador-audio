@@ -5,6 +5,7 @@
 ![Arduino](https://img.shields.io/badge/Arduino-Uno-00878F?logo=arduino&logoColor=white)
 ![Blynk](https://img.shields.io/badge/App-Blynk-23C48E)
 ![Estado](https://img.shields.io/badge/estado-en%20desarrollo-orange)
+![Licencia](https://img.shields.io/badge/licencia-MIT-blue)
 
 Sistema que traduce la música en luz: la computadora analiza el audio en tiempo real y un **Arduino Uno** lo muestra en una **pantalla OLED**.
 
@@ -21,6 +22,8 @@ Proyecto final del **Taller de Introducción a la Ingeniería Eléctrica (Taller
 - [Documentación](#documentación)
 - [Hardware](#hardware)
 - [Equipo](#equipo)
+- [Contribuir](#contribuir)
+- [Licencia](#licencia)
 
 ---
 
@@ -73,7 +76,15 @@ source .venv/bin/activate
 pip install -r requirements.txt
 ```
 
-Después hay que cargar el firmware en el Arduino y ajustar el puerto serie y los dispositivos de audio en [`pc/configuracion.py`](pc/configuracion.py). Los pasos completos (BlackHole, Linux, firmware y comprobaciones) están en [docs/instalacion.md](docs/instalacion.md).
+Después hay que cargar el firmware ([`arduino/analizador_oled/analizador_oled.ino`](arduino/analizador_oled/analizador_oled.ino)) en el Arduino y ajustar el puerto serie y los dispositivos de audio en [`pc/configuracion.py`](pc/configuracion.py). Los pasos completos (BlackHole, Linux, firmware y comprobaciones) están en [docs/instalacion.md](docs/instalacion.md).
+
+**Blynk (opcional):** para controlarlo desde la app, crear un archivo `.env` en la raíz del proyecto con el token de tu dispositivo de Blynk:
+
+```
+BLYNK_AUTH_TOKEN=<tu token>
+```
+
+El `.env` está en `.gitignore` y no se sube nunca. Sin él, el programa funciona igual y solo avisa que Blynk no está conectado. Cómo armar la app: [docs/instalacion.md → Blynk](docs/instalacion.md#blynk-opcional).
 
 ## Uso
 
@@ -129,6 +140,7 @@ La fuente de audio con la que arranca (micrófono o sistema) se elige con `FUENT
 - [x] Visualizador: 4 formas, 3 modos de color, espejo de la OLED y panel de control
 - [x] Firmware: barras, marca de pico, MIC/LINE, nota y pausa en la OLED; botones con antirrebote
 - [x] Firmware: leer el byte 21 del paquete y dibujar las barras desde el centro
+- [x] Firmware: LEDs indicadores de la fuente de audio (micrófono / sistema)
 - [x] El programa sigue funcionando sin Arduino o si se desconecta, y lo reconecta solo en cualquier puerto USB
 - [x] Conexión con Blynk: controles sincronizados con la app y reconexión automática (`pc/blynk_cliente.py`)
 - [x] Estimación de la nota y afinador (`pc/nota.py`): YIN para afinar; raíz del acorde con plantillas para el color por nota
@@ -137,7 +149,6 @@ La fuente de audio con la que arranca (micrófono o sistema) se elige con `FUENT
 **Por hacer**
 
 - [ ] Tablero de registro de uso en Blynk, y la fuente de audio como control de la app
-- [ ] Firmware: LEDs indicadores de la fuente de audio (micrófono / sistema)
 - [ ] Probar la instalación en Linux
 - [ ] Armar la caja de control
 - [ ] Medir el retardo entre el sonido y la pantalla
@@ -160,10 +171,11 @@ analizador-audio/
 │   ├── dibujo.py               # Dibujo de cada zona de la ventana
 │   └── colores.py              # Paleta y color de cada banda
 ├── arduino/
-│   └── botones_oled/
-│       └── botones_oled.ino    # Firmware: OLED y botones
+│   └── analizador_oled/
+│       └── analizador_oled.ino # Firmware: OLED, botones y LEDs
 ├── docs/                       # Documentación del proyecto
-└── requirements.txt            # Dependencias de Python
+├── requirements.txt            # Dependencias de Python
+└── LICENSE                     # Licencia MIT
 ```
 
 ## Documentación
@@ -174,7 +186,6 @@ analizador-audio/
 | [Diseño del sistema](docs/diseno.md) | Arquitectura, hardware, modos, Blynk, visualizador y procesamiento de audio |
 | [Funcionamiento del código](docs/codigo.md) | Módulos, hilos, recorrido de un bloque de audio, funciones principales y cómo agregar cosas |
 | [Protocolo serie](docs/protocolo_serie.md) | Formato de los mensajes entre la computadora y el Arduino |
-| [Guía de Git](docs/guia_git.md) | Cómo trabaja el equipo con Git y GitHub |
 
 ## Hardware
 
@@ -195,3 +206,11 @@ Conexiones y funciones en [Diseño del sistema → Hardware](docs/diseno.md#hard
 | Santiago Trujillo | Software en la computadora (Python) |
 | Lucía Hernández | Firmware del Arduino, protocolo serie y pantalla OLED |
 | Benjamín Cabrera | Hardware, construcción y Blynk |
+
+## Contribuir
+
+Es un proyecto de curso, pero las sugerencias son bienvenidas: si encontrás un error o tenés una idea, abrí un [issue](https://github.com/eltruji04/analizador-audio/issues). Para proponer un cambio en el código, hacé un fork y mandá un pull request.
+
+## Licencia
+
+Distribuido bajo la licencia MIT. Ver [LICENSE](LICENSE).

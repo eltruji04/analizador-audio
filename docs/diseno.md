@@ -92,7 +92,7 @@ Si el Arduino no está conectado al iniciar, o se desconecta en el medio, el pro
 | LED sistema | 2 | Encendido cuando la fuente es el audio de la computadora |
 
 - Los pulsadores usan `INPUT_PULLUP` (apretado = `LOW`) con antirrebote por software de 50 ms. Mandan su código una sola vez por cada vez que se aprietan.
-- Los **LEDs** se alternan según el byte 17 del paquete: siempre hay uno solo encendido. **Todavía no están en el firmware.**
+- Los **LEDs** se alternan según el byte 17 del paquete: siempre hay uno solo encendido.
 - Los pines 0 y 1 los usa el USB y A4/A5 la OLED.
 
 ---
@@ -149,7 +149,7 @@ Contenido previsto:
 
 ### Token de Blynk
 
-El token es una clave privada y **nunca se sube al repositorio**. Cada integrante lo guarda en un archivo `.env` en la raíz del proyecto (ya incluido en `.gitignore`), con una línea `BLYNK_AUTH_TOKEN=<token>`. `blynk_cliente.py` lo lee con `python-dotenv` (`load_dotenv()`).
+El token es una clave privada y **nunca se sube al repositorio**. Cada uno lo guarda en un archivo `.env` en la raíz del proyecto (ya incluido en `.gitignore`), con una línea `BLYNK_AUTH_TOKEN=<token>`. `blynk_cliente.py` lo lee con `python-dotenv` (`load_dotenv()`).
 
 ---
 

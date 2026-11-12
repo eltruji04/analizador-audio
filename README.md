@@ -201,11 +201,11 @@ Conexiones y funciones en [Diseño del sistema → Hardware](docs/diseno.md#hard
 
 ## Equipo
 
-| Integrante | Área |
-|---|---|
-| Santiago Trujillo | Software en la computadora (Python) |
-| Lucía Hernández | Firmware del Arduino, protocolo serie y pantalla OLED |
-| Benjamín Cabrera | Hardware, construcción y Blynk |
+| | Integrante | Área |
+|---|---|---|
+| <img src="https://github.com/eltruji04.png" width="40"> | [Santiago Trujillo](https://github.com/eltruji04) | Software en la computadora (Python) |
+| <img src="https://github.com/luciahermon.png" width="40"> | [Lucía Hernández](https://github.com/luciahermon) | Firmware del Arduino, protocolo serie y pantalla OLED |
+| <img src="https://github.com/benjagoat18.png" width="40"> | [Benjamín Cabrera](https://github.com/benjagoat18) | Hardware, construcción y Blynk |
 
 ## Contribuir
 

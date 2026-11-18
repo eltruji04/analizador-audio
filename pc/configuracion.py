@@ -45,7 +45,7 @@ MODO_MIC = 0
 MODO_LINE = 1
 # Fuente con la que arranca el programa. Después se cambia con la tecla I
 # o los botones MIC | LINE del panel.
-FUENTE_AUDIO = MODO_LINE
+FUENTE_AUDIO = MODO_MIC
 SIN_NOTA = 12                   # valor de la nota (byte 18) cuando no hay una nota clara
 INTERVALO_ENVIO = 1 / 30        # tiempo mínimo entre dos paquetes, en segundos
 # Forma de las barras en la OLED (byte 21 del paquete). La OLED solo sabe

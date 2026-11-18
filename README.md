@@ -3,11 +3,14 @@
 ![Python](https://img.shields.io/badge/Python-3.14-3776AB?logo=python&logoColor=white)
 ![C++](https://img.shields.io/badge/C%2B%2B-%2300599C.svg?logo=c%2B%2B&logoColor=white)
 ![Arduino](https://img.shields.io/badge/Arduino-Uno-00878F?logo=arduino&logoColor=white)
+![ESP32](https://img.shields.io/badge/ESP32-sin%20computadora-E7352C?logo=espressif&logoColor=white)
 ![Blynk](https://img.shields.io/badge/App-Blynk-23C48E)
-![Estado](https://img.shields.io/badge/estado-en%20desarrollo-orange)
+![Estado](https://img.shields.io/badge/estado-finalizado-brightgreen)
 ![Licencia](https://img.shields.io/badge/licencia-MIT-blue)
 
 Sistema que traduce la música en luz: la computadora analiza el audio en tiempo real y un **Arduino Uno** lo muestra en una **pantalla OLED**.
+
+Además incluye una [versión para **ESP32**](esp32/README.md) que hace todo el análisis en la placa, sin computadora.
 
 Proyecto final del **Taller de Introducción a la Ingeniería Eléctrica (TallerInE Robótico)** — IIE, Facultad de Ingeniería, Universidad de la República.
 
@@ -17,6 +20,7 @@ Proyecto final del **Taller de Introducción a la Ingeniería Eléctrica (Taller
 - [Stack tecnológico](#stack-tecnológico)
 - [Inicio rápido](#inicio-rápido)
 - [Uso](#uso)
+- [Versión ESP32](#versión-esp32)
 - [Roadmap](#roadmap)
 - [Estructura del repositorio](#estructura-del-repositorio)
 - [Documentación](#documentación)
@@ -55,6 +59,7 @@ El objetivo del proyecto:
 |---|---|
 | Programa de la computadora | **Python 3.14** con `numpy` (FFT), `sounddevice` (captura de audio), `pyserial` (puerto serie), `pygame-ce` (visualizador), `blynk-library-python` y `python-dotenv` (Blynk) |
 | Firmware | **Arduino (C++)** con las librerías *Adafruit SSD1306* y *Adafruit GFX* |
+| Versión ESP32 | **C++** con el core *esp32* 3.x de Espressif, audio por **I2S** (micrófono INMP441 y ADC PCM1808), *Adafruit SSD1306*, *Adafruit GFX* y *Blynk* |
 | App | **Blynk** |
 | Audio del sistema | **BlackHole** en macOS; fuente "monitor" de PulseAudio/PipeWire en Linux |
 
@@ -125,6 +130,12 @@ El color fijo se elige con las muestras del panel, y la fuente también con sus 
 
 La fuente de audio con la que arranca (micrófono o sistema) se elige con `FUENTE_AUDIO` en [`pc/configuracion.py`](pc/configuracion.py); después se cambia con la tecla `I` o el panel. Al cambiarla, el programa cierra la captura, abre el otro dispositivo (`DISPOSITIVO_MICROFONO` o `DISPOSITIVO_SISTEMA`) y recalibra. Si ese dispositivo no está, sigue con la fuente anterior. En [`pc/configuracion.py`](pc/configuracion.py) están también el puerto serie, los dispositivos de audio y la calibración: ver [Configuración](docs/instalacion.md#configuración).
 
+## Versión ESP32
+
+En [`esp32/`](esp32/README.md) está todo el programa traducido a C++ para un **ESP32**, que hace solo lo que en la versión principal hacen la computadora y el Arduino juntos. Captura el audio por I2S (un micrófono INMP441 para `MIC` y un ADC PCM1808 para `LINE`), lo analiza igual que el Python, lo dibuja en la misma OLED y se conecta a Blynk por WiFi. No tiene el visualizador de la computadora. Las teclas se reemplazan por comandos del Monitor Serie.
+
+El análisis da los mismos resultados que el programa de Python en las pruebas en la compu, y el sketch compila sin warnings. **Todavía no se probó sobre una placa.** El hardware, las conexiones, cómo cargarlo y las pruebas están en [esp32/README.md](esp32/README.md).
+
 ## Roadmap
 
 **Hecho**
@@ -145,13 +156,8 @@ La fuente de audio con la que arranca (micrófono o sistema) se elige con `FUENT
 - [x] Conexión con Blynk: controles sincronizados con la app y reconexión automática (`pc/blynk_cliente.py`)
 - [x] Estimación de la nota y afinador (`pc/nota.py`): YIN para afinar; raíz del acorde con plantillas para el color por nota
 - [x] Probar la detección de golpe con música real
-
-**Por hacer**
-
-- [ ] Tablero de registro de uso en Blynk, y la fuente de audio como control de la app
-- [ ] Probar la instalación en Linux
-- [ ] Armar la caja de control
-- [ ] Medir el retardo entre el sonido y la pantalla
+- [x] Armar la caja de control
+- [x] Traducción al ESP32 (`esp32/`): el mismo análisis sin computadora, comparado bloque a bloque con el Python
 
 ## Estructura del repositorio
 
@@ -173,6 +179,10 @@ analizador-audio/
 ├── arduino/
 │   └── analizador_oled/
 │       └── analizador_oled.ino # Firmware: OLED, botones y LEDs
+├── esp32/                      # Versión sin computadora (C++)
+│   ├── analizador_esp32/       # Sketch: captura I2S, análisis, OLED, botones y Blynk
+│   ├── pruebas/                # Pruebas en la compu y comparación con el Python
+│   └── README.md               # Hardware, conexiones, carga y pruebas del ESP32
 ├── docs/                       # Documentación del proyecto
 ├── requirements.txt            # Dependencias de Python
 └── LICENSE                     # Licencia MIT
@@ -186,6 +196,7 @@ analizador-audio/
 | [Diseño del sistema](docs/diseno.md) | Arquitectura, hardware, modos, Blynk, visualizador y procesamiento de audio |
 | [Funcionamiento del código](docs/codigo.md) | Módulos, hilos, recorrido de un bloque de audio, funciones principales y cómo agregar cosas |
 | [Protocolo serie](docs/protocolo_serie.md) | Formato de los mensajes entre la computadora y el Arduino |
+| [Versión ESP32](esp32/README.md) | Qué se tradujo, hardware y conexiones, cómo cargarlo, pruebas y memoria |
 
 ## Hardware
 
@@ -197,7 +208,7 @@ analizador-audio/
 | LEDs indicadores con resistencia | 2 |
 | Caja de control | 1 |
 
-Conexiones y funciones en [Diseño del sistema → Hardware](docs/diseno.md#hardware).
+Conexiones y funciones en [Diseño del sistema → Hardware](docs/diseno.md#hardware). El hardware de la versión ESP32 está en [esp32/README.md → Hardware](esp32/README.md#hardware).
 
 ## Equipo
 

@@ -15,6 +15,7 @@ Guía detallada para preparar el entorno en macOS y Linux. El resumen está en e
   - [Firmware del Arduino](#firmware-del-arduino)
   - [Blynk (opcional)](#blynk-opcional)
 - [Pruebas por módulo](#pruebas-por-módulo)
+- [Versión ESP32](#versión-esp32)
 
 ---
 
@@ -142,8 +143,8 @@ Todos los parámetros están en [`pc/configuracion.py`](../pc/configuracion.py).
 | Parámetro | Para qué |
 |---|---|
 | `PUERTO_SERIE` | Plan B para encontrar el Arduino. El programa lo busca solo por `VID_ARDUINO`/`PID_ARDUINO`, en cualquier puerto USB; este puerto fijo solo se usa si no aparece ninguno con ese VID:PID (por ejemplo, un clon con CH340). Verlo con `python -m serial.tools.list_ports`. |
-| `FUENTE_AUDIO` | Fuente con la que arranca: `MODO_LINE` (audio del sistema) o `MODO_MIC` (micrófono). Después se cambia con la tecla `I` o el panel. |
-| `DISPOSITIVO_SISTEMA`, `DISPOSITIVO_MICROFONO` | Parte del nombre de los dispositivos de audio (se buscan por nombre, no por número). Son los dos entre los que se alterna al cambiar la fuente. |
+| `FUENTE_AUDIO` | Fuente con la que arranca: `MODO_MIC` (micrófono, el valor por defecto) o `MODO_LINE` (audio del sistema). Después se cambia con la tecla `I` o el panel. Si arranca en `MODO_LINE` y no está BlackHole (o la fuente "monitor" en Linux), el programa no puede abrir la captura. |
+| `DISPOSITIVO_SISTEMA`, `DISPOSITIVO_MICROFONO` | Parte del nombre de los dispositivos de audio (se buscan por nombre, no por número). Son los dos entre los que se alterna al cambiar la fuente. Vienen con los nombres de una MacBook Air (`"Micrófono de MacBook Air"` y `"BlackHole 2ch"`). En otra computadora hay que poner los que muestra `python -m sounddevice`. |
 
 Para ajustar el comportamiento:
 
@@ -218,9 +219,27 @@ Cada módulo se puede correr por separado para probar una parte:
 
 | Comando | Qué hace |
 |---|---|
-| `python pc/captura.py` | Muestra el nivel del audio del sistema como una barra de `#` en la terminal. |
-| `python pc/bandas.py` | Prueba con tonos: cada tono tiene que caer en su banda (16 de 16), y muestra cuántos valores del espectro tiene cada banda con 1024 y 4096 muestras. |
+| `python pc/captura.py` | Muestra el nivel del audio del sistema (`DISPOSITIVO_SISTEMA`) como una barra de `#` en la terminal. Necesita BlackHole. |
+| `python pc/bandas.py` | Prueba con tonos: cada tono tiene que caer en su banda (16 de 16), y muestra cuántos valores del espectro tiene cada banda con 1024 y 4096 muestras. También prueba `nivel_db` y `promediar`. |
 | `python pc/serie.py` | Arma paquetes de prueba (sin Arduino), comprueba los errores por valores inválidos y prueba la lectura de botones con un puerto falso. |
-| `python pc/estado.py` | Prueba los cambios de estado: códigos de botón, rotación de formas, valores inválidos y avisos a los suscriptores. |
-| `python pc/golpe.py` | Prueba el detector de golpes con casos inventados; tiene que terminar con `Errores: 0 de 12`. |
+| `python pc/estado.py` | Prueba los cambios de estado: códigos de botón, rotación de formas, valores inválidos, avisos a los suscriptores y preferencias (en una carpeta temporal, sin tocar `pc/preferencias.json`). |
+| `python pc/golpe.py` | Prueba el detector de golpes con casos inventados (tiene que dar `Errores: 0 de 12`) y el cálculo del tempo. |
+| `python pc/nota.py` | Prueba la nota y el afinador con tonos, acordes de guitarra, ruido y voz sintéticos, y el modo nota bloque a bloque. Tiene que terminar con `Todo bien`. |
+| `python pc/dibujo.py` | Prueba la curva de la forma onda (`suavizar`). No abre ninguna ventana; tiene que terminar con `Todo bien`. |
 | `python pc/visualizador.py` | Abre la ventana con datos simulados (sin audio ni Arduino): barras en movimiento, un golpe cada 0,5 s y una nota distinta cada 2 s. Se cierra con la ✕. |
+
+---
+
+## Versión ESP32
+
+La versión sin computadora se carga desde el Arduino IDE con el core **esp32** de Espressif (3.x) y las librerías *Adafruit SSD1306*, *Adafruit GFX* y *Blynk*. Para Blynk se usa `esp32/analizador_esp32/secretos.h` (copiado de `secretos.h.ejemplo`) en vez del `.env`. Los pasos, el hardware y las conexiones están en [esp32/README.md](../esp32/README.md#cómo-cargarlo).
+
+Sus pruebas corren en la compu, sin placa. Usan el entorno virtual de esta guía y un compilador de C++ (`c++`; en macOS viene con las herramientas de línea de comandos de Xcode):
+
+```bash
+sh esp32/pruebas/correr_pruebas.sh
+```
+
+```bash
+.venv/bin/python esp32/pruebas/comparar_con_python.py
+```

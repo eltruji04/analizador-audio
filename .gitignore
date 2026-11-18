@@ -8,3 +8,6 @@ pc/preferencias.json.tmp
 pc/medir_niveles.py
 pc/prueba_sin_audio.py
 arduino/prueba_boton/prueba_boton.ino
+esp32/analizador_esp32/secretos.h
+esp32/pruebas/salida/
+informe/
